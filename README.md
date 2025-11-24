@@ -41,9 +41,11 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 search_alpha is a sensitivity parameter that determines how many missed bins SEARCH tolerates before triggering a reset.
 
 ✔ Default Setting (Reset Disabled for Missed Bins)
+
 In this implementation of SEARCH 3.1, search_alpha is set to a very large value, effectively disabling automatic resets based on missed bins.
 
 🔧 Enabling Reset Behavior
+
 If missed-bin resetting is desired, users can set search_alpha to a smaller value. A smaller threshold makes SEARCH more responsive to stalled bin progression.
 
 ---
