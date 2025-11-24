@@ -30,13 +30,6 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 
 ---
 
-## **SEARCH 3.1**
-- Applies bin array scale-factor reduction  
-- Resets algorithm on:
-  - several missed bins  
-  - app-limited state  
----
-
 🔁 Reset Behavior in SEARCH 3.1 (Missed-Bin Logic)
 
 search_alpha is a sensitivity parameter that determines how many missed bins SEARCH tolerates before triggering a reset.
