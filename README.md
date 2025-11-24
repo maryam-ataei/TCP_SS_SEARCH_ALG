@@ -123,7 +123,7 @@ Set current congestion control alg:
 	sudo sysctl -w net.ipv4.tcp_congestion_control=cubic_search
     
 	
-Managing HyStart functionality(v2 → v3.0):
+Managing HyStart functionality(v3.0 and older):
 
 	Disable hystart: 
  
@@ -133,63 +133,70 @@ Managing HyStart functionality(v2 → v3.0):
   
   		sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/hystart"
       
-Managing SEARCH (v2 → v3.0)
+Managing SEARCH (v3.0 and older)
 
 Disable SEARCH
 
 ```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/search"
+```
 
+Enable SEARCH
 
-### Enable SEARCH
-\`\`\`bash
+```bash
 sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/search"
-\`\`\`
+```
 
 ---
 
-## Managing SEARCH (v3.1)
+Managing SEARCH (v3.1)
 
-### Enable SEARCH
-\`\`\`bash
+Enable SEARCH
+
+```bash
 sudo sh -c "echo '1' > /sys/module/your_module_name/parameters/slow_start_mode"
-\`\`\`
+```
 
-### Enable HyStart
-\`\`\`bash
+Enable HyStart
+
+```bash
 sudo sh -c "echo '2' > /sys/module/cubic_with_search/parameters/slow_start_mode"
-\`\`\`
+```
 
-### Disable both
-\`\`\`bash
+Disable both
+
+```bash
 sudo sh -c "echo '0' > /sys/module/cubic_with_search/parameters/slow_start_mode"
-\`\`\`
-
+```
 ---
 
-## Set cwnd at Exit Time
+Set cwnd at Exit Time
 
-### Enable
-\`\`\`bash
+Enable
+
+```bash
 sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
-\`\`\`
+```
 
-### Disable
-\`\`\`bash
+Disable
+
+```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
-\`\`\`
+```
 
 ---
 
-## Interpolation (v3.0 and older)
+Interpolation (v3.0 and older)
 
-### Enable
-\`\`\`bash
+Enable
+
+```bash
 sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/do_intpld"
-\`\`\`
+```
 
-### Disable
-\`\`\`bash
+Disable
+
+```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/do_intpld"
-\`\`\`
+```
 
