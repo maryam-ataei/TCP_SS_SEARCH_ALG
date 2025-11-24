@@ -123,7 +123,7 @@ Set current congestion control alg:
 	sudo sysctl -w net.ipv4.tcp_congestion_control=cubic_search
     
 	
-Managing HyStart functionality:
+Managing HyStart functionality(v2 → v3.0):
 
 	Disable hystart: 
  
@@ -140,18 +140,22 @@ Disable SEARCH:
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/search"
 
 
-Enable SEARCH with slow start exit:
+Enable SEARCH:
 
 sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/search"
 
 Managing SEARCH (v3.1)
+
 Enable SEARCH:
+
   sudo sh -c "echo '1' > /sys/module/your_module_name/parameters/slow_start_mode"
 
 Enable HyStart:
+
   sudo sh -c "echo '2' > /sys/module/cubic_with_search/parameters/slow_start_mode"
 
 Disable both:
+
   sudo sh -c "echo '0' > /sys/module/cubic_with_search/parameters/slow_start_mode"
 
 Set cwnd at Exit Time
