@@ -59,6 +59,8 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 
 ## 🧩 Dependency — Kernel Modification
 
+JUST for SEARCH version 3.0 and older:
+
 The kernel needs to be recompiled with a larger `ICSK_CA_PRIV_SIZE`.
 Edit:
 
@@ -154,19 +156,19 @@ Managing SEARCH (v3.1)
 Enable SEARCH
 
 ```bash
-sudo sh -c "echo '1' > /sys/module/your_module_name/parameters/slow_start_mode"
+sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
 ```
 
 Enable HyStart
 
 ```bash
-sudo sh -c "echo '2' > /sys/module/cubic_with_search/parameters/slow_start_mode"
+sudo sh -c "echo '2' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
 ```
 
 Disable both
 
 ```bash
-sudo sh -c "echo '0' > /sys/module/cubic_with_search/parameters/slow_start_mode"
+sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
 ```
 ---
 
