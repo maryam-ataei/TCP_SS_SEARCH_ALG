@@ -4,6 +4,10 @@
 
 ---
 
+🔧 Kernel Version Compatibility
+
+This main branch contains the latest implementation of SEARCH 3.1, designed for Linux kernel 6.13.
+
 ## 📘 Overview
 
 TCP slow start ramps up the congestion window (cwnd) exponentially until reaching the congestion point. However:
