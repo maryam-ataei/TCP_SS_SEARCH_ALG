@@ -26,28 +26,57 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 
 ---
 
-## **SEARCH 3.1**
+## 🔢 Versions of the SEARCH Algorithm
+
+All versions provided in this branch are implemented for the Linux 5.10 kernel.
+
+### **SEARCH 1.0**
+- Uses sent + delivered bytes  
+- Bins based on deltas from previous bins
+
+### **SEARCH 2.0**
+- Uses only delivered bytes  
+- Bins based on deltas
+
+### **SEARCH 3.0**
+- Uses only delivered bytes  
+- Bins based on *cumulative* delivered bytes
+
+### **SEARCH 3.1**
 - Applies bin array scale-factor reduction  
 - Resets algorithm on:
   - several missed bins  
   - app-limited state  
+- *Does not require memory changes from the kernel*
+
 ---
-
-🔁 Reset Behavior in SEARCH 3.1 (Missed-Bin Logic)
-
-search_alpha is a sensitivity parameter that determines how many missed bins SEARCH tolerates before triggering a reset.
-
-✔ Default Setting (Reset Disabled for Missed Bins)
-In this implementation of SEARCH 3.1, search_alpha is set to a very large value, effectively disabling automatic resets based on missed bins.
-
-🔧 Enabling Reset Behavior
-If missed-bin resetting is desired, users can set search_alpha to a smaller value. A smaller threshold makes SEARCH more responsive to stalled bin progression.
 
 ## ⚙ Search Options (General)
 
+- Disable interpolation when previous window falls between bins  
 - On exit, optionally lower cwnd to value from 2 RTTs prior  
 
 ---
+
+## 🧩 Dependency — Kernel Modification
+
+JUST for SEARCH version 3.0 and older:
+
+The kernel needs to be recompiled with a larger `ICSK_CA_PRIV_SIZE`.
+Edit:
+
+`include/net/inet_connection_sock.h`
+
+and for these lines:
+
+````
+  u64                       icsk_ca_priv[104 / sizeof(u64)];
+  
+  #define ICSK_CA_PRIV_SIZE      (13 * sizeof(u64))
+````
+
+change the number `104` to `200` and `13` to `25`.  Then rebuild and reboot the kernel normally.
+
 
 ## Build
 
@@ -86,23 +115,44 @@ Follow these steps to integrate SEARCH TCP into your kernel:
 
 Check available congestion control algs:
 
-```bash
-sysctl net.ipv4.tcp_available_congestion_control
-```
+	sysctl net.ipv4.tcp_available_congestion_control
 
 Check current congestion control alg:
 
-```bash
-sysctl net.ipv4.tcp_congestion_control
-```
+	sysctl net.ipv4.tcp_congestion_control
 
 Set current congestion control alg:
 
-```bash
-sudo sysctl -w net.ipv4.tcp_congestion_control=cubic_search
-```
+	sudo sysctl -w net.ipv4.tcp_congestion_control=cubic_search
     
-Managing slow start mode
+	
+Managing HyStart functionality(v3.0 and older):
+
+	Disable hystart: 
+ 
+ 		sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/hystart"
+   
+ 	Enable hystart: 
+  
+  		sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/hystart"
+      
+Managing SEARCH (v3.0 and older)
+
+Disable SEARCH
+
+```bash
+sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/search"
+```
+
+Enable SEARCH
+
+```bash
+sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/search"
+```
+
+---
+
+Managing SEARCH (v3.1)
 
 Enable SEARCH
 
@@ -136,3 +186,20 @@ Disable
 ```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
 ```
+
+---
+
+Interpolation (v3.0 and older)
+
+Enable
+
+```bash
+sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/do_intpld"
+```
+
+Disable
+
+```bash
+sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/do_intpld"
+```
+
