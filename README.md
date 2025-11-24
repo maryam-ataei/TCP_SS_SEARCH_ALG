@@ -137,44 +137,56 @@ Managing SEARCH (v2 → v3.0)
 
 Disable SEARCH:
 
+    ```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/search"
-
+    ```
 
 Enable SEARCH:
 
+    ```bash
 sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/search"
-
+    ```
+	
 Managing SEARCH (v3.1)
 
 Enable SEARCH:
 
+    ```bash
   sudo sh -c "echo '1' > /sys/module/your_module_name/parameters/slow_start_mode"
-
+    ```
+	
 Enable HyStart:
 
+    ```bash
   sudo sh -c "echo '2' > /sys/module/cubic_with_search/parameters/slow_start_mode"
-
+    ```
 Disable both:
 
+    ```bash
   sudo sh -c "echo '0' > /sys/module/cubic_with_search/parameters/slow_start_mode"
-
+    ```
+	
 Set cwnd at Exit Time
 
 Enable:
 
+    ```bash
 sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
-
+    ```
 Disable:
 
+    ```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
-
+    ```
+	
 Interpolation (v3.0 and older)
 
 Enable:
-
+    ```bash
 sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/do_intpld"
-
+    ```
 
 Disable:
-
+    ```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/do_intpld"
+    ```
