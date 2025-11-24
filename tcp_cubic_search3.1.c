@@ -87,11 +87,11 @@ MODULE_PARM_DESC(hystart_ack_delta_us, "spacing between ack's indicating train (
 
 //////////////////////// SEARCH ////////////////////////
 /*	enable SEARCH with command:
- 		sudo sh -c "echo '1' > /sys/module/your_module_name/parameters/slow_start_mode"
+ 		sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
 	enable HyStart with command:
- 		sudo sh -c "echo '2' > /sys/module/cubic_with_search/parameters/slow_start_mode"  
+ 		sudo sh -c "echo '2' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"  
 	disable both SEARCH and HyStart with command:
- 		sudo sh -c "echo '0' > /sys/module/cubic_with_search/parameters/slow_start_mode" 
+ 		sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode" 
 */
 
 #define MAX_US_INT 0xffff 
