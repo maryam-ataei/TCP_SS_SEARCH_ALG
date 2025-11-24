@@ -133,12 +133,13 @@ Managing HyStart functionality(v2 → v3.0):
   
   		sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/hystart"
       
-## Managing SEARCH (v2 → v3.0)
+Managing SEARCH (v2 → v3.0)
 
-### Disable SEARCH
-\`\`\`bash
+Disable SEARCH
+
+```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/search"
-\`\`\`
+
 
 ### Enable SEARCH
 \`\`\`bash
