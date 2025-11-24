@@ -30,7 +30,13 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 
 ---
 
-🔁 Reset Behavior in SEARCH 3.1 (Missed-Bin Logic)
+## ⚙ Search Options (General)
+
+- On exit, optionally lower cwnd to value from 2 RTTs prior  
+
+---
+
+## 🔁 Reset Behavior in SEARCH 3.1 (Missed-Bin Logic)
 
 search_alpha is a sensitivity parameter that determines how many missed bins SEARCH tolerates before triggering a reset.
 
@@ -39,10 +45,6 @@ In this implementation of SEARCH 3.1, search_alpha is set to a very large value,
 
 🔧 Enabling Reset Behavior
 If missed-bin resetting is desired, users can set search_alpha to a smaller value. A smaller threshold makes SEARCH more responsive to stalled bin progression.
-
-## ⚙ Search Options (General)
-
-- On exit, optionally lower cwnd to value from 2 RTTs prior  
 
 ---
 
