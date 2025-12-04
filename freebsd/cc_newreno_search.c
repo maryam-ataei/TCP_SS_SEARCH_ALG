@@ -243,7 +243,7 @@ newreno_cb_init(struct cc_var *ccv, void *ptr)
 	/* SEARCH_begin */
 	nreno->last_rtt_sample = 0;
 	nreno->search_cumulative_acked_bytes = 0;
-	if (V_use_search){
+	if (V_use_search)
 		search_reset(nreno, RESET_BIN_DURATION_TRUE);
 	/* SEARCH_end */
 	return (0);
