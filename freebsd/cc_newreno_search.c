@@ -905,10 +905,11 @@ newreno_ctl_output(struct cc_var *ccv, struct sockopt *sopt, void *buf)
 	struct newreno *nreno;
 	struct cc_newreno_opts *opt;
 
+	/* SEARCH_begin */
 	if (sopt->sopt_valsize != sizeof(struct cc_newreno_opts))
 		return (EMSGSIZE);
-
-	if (CC_ALGO(ccv->ccvc.tcp) != &newreno_cc_algo)
+	/* SEARCH_end */
+	if (CC_ALGO(ccv->ccvc.tcp) != &newreno_search_cc_algo)
 		return (ENOPROTOOPT);
 
 	nreno = (struct newreno *)ccv->cc_data;
