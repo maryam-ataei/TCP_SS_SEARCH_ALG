@@ -518,7 +518,7 @@ search_exit_slow_start(struct cc_var* ccv, uint64_t now_us, uint64_t rtt_us) {
 
 		cong_idx = nreno->search_curr_idx - ((2 * rtt_us) / nreno->search_bin_duration_us);
 
-		if (nreno->search_curr_idx - cong_idx <= SEARCH_EXTRA_ACKED_BINS - 1){
+		if (nreno->search_curr_idx - cong_idx <= SEARCH_ACKED_BINS - 1){
 
 			/* Calculate the overshoot based on the delivered bytes between cong_idx and the current index */
 			overshoot_cwnd = (int64_t)search_compute_delv_window(ccv, cong_idx, nreno->search_curr_idx);

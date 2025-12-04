@@ -1,5 +1,5 @@
 --- cc_newreno.c	2025-12-03 15:33:52.626745741 -0500
-+++ cc_newreno_search.c	2025-12-04 13:34:44.416125991 -0500
++++ cc_newreno_search.c	2025-12-04 13:53:42.504516087 -0500
 @@ -82,8 +82,14 @@
  #include <netinet/tcp_hpts.h>
  #include <netinet/cc/cc.h>
@@ -342,7 +342,7 @@
 +
 +		cong_idx = nreno->search_curr_idx - ((2 * rtt_us) / nreno->search_bin_duration_us);
 +
-+		if (nreno->search_curr_idx - cong_idx <= SEARCH_EXTRA_ACKED_BINS - 1){
++		if (nreno->search_curr_idx - cong_idx <= SEARCH_ACKED_BINS - 1){
 +
 +			/* Calculate the overshoot based on the delivered bytes between cong_idx and the current index */
 +			overshoot_cwnd = (int64_t)search_compute_delv_window(ccv, cong_idx, nreno->search_curr_idx);
