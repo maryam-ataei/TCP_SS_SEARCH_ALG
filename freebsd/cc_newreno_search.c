@@ -82,7 +82,6 @@
 #include <netinet/tcp_hpts.h>
 #include <netinet/cc/cc.h>
 #include <netinet/cc/cc_module.h>
-#include <netinet/cc/cc_newreno.h>
 #include <sys/syslog.h>
 /* SEARCH_begin */
 #include <netinet/cc/cc_newreno_search.h>
@@ -447,8 +446,7 @@ search_update_bins(struct cc_var* ccv, uint64_t now_us, uint64_t rtt_us) {
  */
 static inline uint64_t
 search_compute_sent_window(struct cc_var *ccv,
-                      int32_t left, int32_t right, uint32_t fraction)
-{
+                      int32_t left, int32_t right, uint32_t fraction) {
     uint64_t w = 0;
     w  = SEARCH_SENT_BIN(ccv, right - 1) - SEARCH_SENT_BIN(ccv, left);
 
@@ -474,8 +472,7 @@ search_compute_sent_window(struct cc_var *ccv,
  */
 static inline uint64_t
 search_compute_delv_window(struct cc_var *ccv,
-                      int32_t left, int32_t right)
-{
+                      int32_t left, int32_t right) {
     uint64_t w = 0;
 
     w = SEARCH_ACKED_BIN(ccv, right) - SEARCH_ACKED_BIN(ccv, left);
@@ -521,7 +518,7 @@ search_exit_slow_start(struct cc_var* ccv, uint64_t now_us, uint64_t rtt_us) {
 
 		cong_idx = nreno->search_curr_idx - ((2 * rtt_us) / nreno->search_bin_duration_us);
 
-		if (nreno->search_curr_idx - cong_idx <= SEARCH_EXTRA_BINS - 1){
+		if (nreno->search_curr_idx - cong_idx <= SEARCH_EXTRA_ACKED_BINS - 1){
 
 			/* Calculate the overshoot based on the delivered bytes between cong_idx and the current index */
 			overshoot_cwnd = (int64_t)search_compute_delv_window(ccv, cong_idx, nreno->search_curr_idx);
@@ -535,10 +532,10 @@ search_exit_slow_start(struct cc_var* ccv, uint64_t now_us, uint64_t rtt_us) {
 			CCV(ccv, snd_cwnd) = max(CCV(ccv, snd_cwnd) - overshoot_cwnd, V_tcp_initcwnd_segments);
 		else 
 			CCV(ccv, snd_cwnd) = V_tcp_initcwnd_segments;
+		}
 	}
 
 	CCV(ccv, snd_ssthresh) = CCV(ccv, snd_cwnd);
-
 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
 }
 
@@ -573,7 +570,6 @@ search_update(struct cc_var* ccv, int64_t now_us, int64_t rtt_us) {
 
 	/* by receiving the first ack packet, initialize bin duration and bin end time */
 	if (nreno->search_curr_idx < 0) {
-		
 		search_init_bins(ccv, now_us, rtt_us);
 		return false;
 	}
