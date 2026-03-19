@@ -725,6 +725,7 @@ static void search_exit_slow_start(struct sock *sk, u32 now_us, u32 rtt_us)
 	s32 cong_idx = 0;
 	u32 initial_rtt = 0;
 	u64 overshoot_bytes = 0;
+	u64 overshoot_bytes_rescaled = 0;
 	u32 overshoot_cwnd = 0;
 	
 	/* If cwnd rollback is enabled, the code calculates the initial round-trip time (RTT)
@@ -755,7 +756,8 @@ static void search_exit_slow_start(struct sock *sk, u32 now_us, u32 rtt_us)
  		overshoot_bytes = search_compute_delivered_window(sk, cong_idx, ca->search.curr_idx, 0);
 
  		/* Calculate the rollback congestion window based on overshoot divided by MSS */
- 		overshoot_cwnd = overshoot_bytes / tp->mss_cache;
+ 		overshoot_bytes_rescaled = overshoot_bytes << ca->search.scale_factor;
+ 		overshoot_cwnd = overshoot_bytes_rescaled / tp->mss_cache;
 		
  		/* Reduce the current congestion window (cwnd) with a safety guard:
 		* It doesn't drop below the initial cwnd (TCP_INIT_CWND) or is not 
