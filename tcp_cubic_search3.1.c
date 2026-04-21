@@ -120,7 +120,7 @@ static int slow_start_mode __read_mostly = SS_SEARCH;
 static int search_window_duration_factor __read_mostly = 35;
 static int search_thresh __read_mostly = 35;
 static int cwnd_rollback __read_mostly;
-static int search_alpha = MAX_US_INT;    // 2
+static int search_alpha = 2; 
 
 // Module parameters used by SEARCH
 module_param(slow_start_mode, int, 0644);
