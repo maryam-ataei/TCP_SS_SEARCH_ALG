@@ -29,8 +29,9 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 - **Lower packet loss** than HyStart-off
 
 ---
+## Version
 
-## SEARCH 3.1
+### SEARCH 3.1
 
 uses only delivered bytes
 sets bin values based on cumulative delivered bytes
@@ -38,7 +39,7 @@ reduces bits in bin array with scale factor
 resets the algorithm if several missed bins
 resets algorithm if app limited (version 3.1)
 
-## SEARCH 4.0
+### SEARCH 4.0
 
 uses sent and delivered bytes
 sets bin values based on cumulative bytes
@@ -74,26 +75,26 @@ Follow these steps to integrate SEARCH TCP into your kernel:
 
 * ⚠️ Additional Kernel Modification (Required for SEARCH 4.0)
 
-If you are using SEARCH version 4.0, you must increase the TCP congestion control private data size in the Linux kernel.
+  If you are using SEARCH version 4.0, you must increase the TCP congestion control private data size in the Linux kernel.
 
-** Modify inet_connection_sock
+  ** Modify inet_connection_sock
 
-Edit the following file:
+  Edit the following file:
 
-```bash
-include/net/inet_connection_sock.h
-```
-Locate this line:
-
-```bash
-u64 icsk_ca_priv[104 / sizeof(u64)];
-```
-
-and change it to:
-
-```bash
-u64 icsk_ca_priv[132 / sizeof(u64)];
-```
+	```bash
+	include/net/inet_connection_sock.h
+	```
+	Locate this line:
+	
+	```bash
+	u64 icsk_ca_priv[104 / sizeof(u64)];
+	```
+	
+	and change it to:
+	
+	```bash
+	u64 icsk_ca_priv[132 / sizeof(u64)];
+	```
 
 * Run the following commands:
 
