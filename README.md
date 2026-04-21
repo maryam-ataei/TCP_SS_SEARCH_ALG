@@ -30,23 +30,20 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 
 ---
 
-## ⚙ Search Options (General)
+## SEARCH 3.1
 
-- On exit, optionally lower cwnd to value from 2 RTTs prior  
+uses only delivered bytes
+sets bin values based on cumulative delivered bytes
+reduces bits in bin array with scale factor
+resets the algorithm if several missed bins
+resets algorithm if app limited (version 3.1)
 
----
+## SEARCH 4.0
 
-## 🔁 Reset Behavior in SEARCH 3.1 (Missed-Bin Logic)
-
-search_alpha is a sensitivity parameter that determines how many missed bins SEARCH tolerates before triggering a reset.
-
-✔ Default Setting (Reset Disabled for Missed Bins)
-
-In this implementation of SEARCH 3.1, search_alpha is set to a very large value, effectively disabling automatic resets based on missed bins.
-
-🔧 Enabling Reset Behavior
-
-If missed-bin resetting is desired, users can set search_alpha to a smaller value. A smaller threshold makes SEARCH more responsive to stalled bin progression.
+uses sent and delivered bytes
+sets bin values based on cumulative bytes
+reduces bits in bin array with scale factor
+Upon exit, drain built-up queuing to target cwnd
 
 ---
 
@@ -74,7 +71,30 @@ Follow these steps to integrate SEARCH TCP into your kernel:
 * Add the `.o` file to `net/ipv4/Makefile`
   
   the line should look like: `obj-$(CONFIG_TCP_CONG_SEARCH) += tcp_cubic_search.o`
-  
+
+* ⚠️ Additional Kernel Modification (Required for SEARCH 4.0)
+
+If you are using SEARCH version 4.0, you must increase the TCP congestion control private data size in the Linux kernel.
+
+** Modify inet_connection_sock
+
+Edit the following file:
+
+```bash
+include/net/inet_connection_sock.h
+```
+Locate this line:
+
+```bash
+u64 icsk_ca_priv[104 / sizeof(u64)];
+```
+
+and change it to:
+
+```bash
+u64 icsk_ca_priv[132 / sizeof(u64)];
+```
+
 * Run the following commands:
 
     ```bash
