@@ -44,7 +44,7 @@ typedef uint16_t search_bin_t;
 #define SEARCH_ACKED_BINS (SEARCH_WIN_BINS + SEARCH_EXTRA_ACKED_BINS)
 #define SEARCH_SENT_BINS (SEARCH_WIN_BINS + SEARCH_EXTRA_SENT_BINS)
 #define SEARCH_THRESH 35
-#define SEARCH_ALPHA MAX_US_INT
+#define SEARCH_ALPHA 2
 
 enum unset_bin_duration {
 	RESET_BIN_DURATION_TRUE,		// Reset bin duration
