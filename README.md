@@ -173,7 +173,9 @@ sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
  	Replace <value> with your desired integer.
 
 	Default = 2 → corresponds to ~2 RTTs tolerance for missed bins
+
 	Lower value → more aggressive reset
+
 	Higher value → more tolerant (less frequent resets)
 
 * Drain Phase (SEARCH 4.0)
