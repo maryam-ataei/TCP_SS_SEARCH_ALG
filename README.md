@@ -145,16 +145,33 @@ sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
 ```
 ---
 
-Set cwnd at Exit Time
+* Set cwnd at Exit Time (SEARCH 3.1 only)
 
-Enable
+	In SEARCH version 3.1, you can control whether the congestion window is rolled back at slow start exit.
+	
+	Enable
+	
+	```bash
+	sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
+	```
+	
+	Disable
+	
+	```bash
+	sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
+	```
 
-```bash
-sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
-```
+* Drain Phase (SEARCH 4.0)
 
-Disable
+	In SEARCH version 4.0, cwnd rollback is replaced with a drain phase, which gradually reduces the built-up queue after finding capacity.
+	
+	The drain behavior is controlled directly in the code:
 
-```bash
-sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
-```
+	```bash
+	#define SEARCH_DRAIN_ACKEDSEG_THRESH 3  /* ACKed-segment threshold to permit CWND increase during drain */
+	```
+ 
+	You can adjust this value to control how aggressively the queue is drained:
+	
+	Lower value → faster cwnd growth during drain (less aggressive draining)
+	Higher value → slower cwnd growth (more aggressive draining)
