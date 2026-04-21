@@ -144,6 +144,7 @@ Disable both
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
 ```
 ---
+## SEARCH Parameters
 
 * Set cwnd at Exit Time (SEARCH 3.1 only)
 
@@ -161,6 +162,20 @@ sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
 	sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
 	```
 
+ * search_alpha (SEARCH 3.1 only)
+
+	The search_alpha parameter controls the sensitivity of SEARCH to missed bins, which determines when the algorithm resets.
+
+	```bash
+	sudo sh -c "echo '<value>' > /sys/module/tcp_cubic_search/parameters/search_alpha"
+ 	```
+
+ 	Replace <value> with your desired integer.
+
+	Default = 2 → corresponds to ~2 RTTs tolerance for missed bins
+	Lower value → more aggressive reset
+	Higher value → more tolerant (less frequent resets)
+
 * Drain Phase (SEARCH 4.0)
 
 	In SEARCH version 4.0, cwnd rollback is replaced with a drain phase, which gradually reduces the built-up queue after finding capacity.
@@ -174,4 +189,5 @@ sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
 	You can adjust this value to control how aggressively the queue is drained:
 	
 	Lower value → faster cwnd growth during drain (less aggressive draining)
+
 	Higher value → slower cwnd growth (more aggressive draining)
