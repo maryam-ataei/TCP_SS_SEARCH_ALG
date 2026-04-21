@@ -113,7 +113,6 @@ enum unset_bin_duration {
 static int slow_start_mode __read_mostly = SS_SEARCH;
 static int search_window_duration_factor __read_mostly = 35;
 static int search_thresh __read_mostly = 35;
-static int search_alpha = MAX_US_INT;    // 2
 static int debug_port __read_mostly = 5201;
 
 // Module parameters used by SEARCH
@@ -125,9 +124,6 @@ module_param(search_thresh, int, 0644);
 MODULE_PARM_DESC(search_thresh, "Threshold for exiting from slow start in percentage");
 module_param(debug_port, int, 0644);
 MODULE_PARM_DESC(debug_port, "Minimum threshold of missed bins before resetting SEARCH");
-module_param(search_alpha, int, 0644);
-MODULE_PARM_DESC(search_alpha, "Alpha factor for determining missed bin limit in SEARCH. Defaults to 2, representing two RTTs.");
-
 
 
 /* BIC TCP Parameters */
@@ -669,40 +665,11 @@ static void search_update_bins(struct sock *sk, u32 now_us, u32 rtt_us)
 	u64 acked_value = 0;
 	u64 sent_value = 0;
 	u8 amount_scaled = 0; 
-	u32 initial_rtt = 0; 
 	u64 largest_val = 0;
 
 
 	/* If passed_bins greater than 1, it means we have some missed bins */
 	passed_bins = ((now_us - ca->search.bin_end_us) / ca->search.bin_duration_us) + 1;
-
-	/*
-	 * If the RTT / bin duration is greater than the number of missed
-	 * bins, that means it has been at least one RTT since the last bin
-	 * was filled.  In this case, computing the delivered bytes over an
-	 * RTT is unreliable so SEARCH should be reset.
-	 *
-	 * When this condition is met:
-	 *   - If passed_bins exceeds SEARCH_BINS, perform a complete SEARCH reset including unseting bin_duration. The bin_duration will be reset upon receiving the next ack..
-	 *   - Otherwise, perform a partial SEARCH reset that preserves the existing bin duration.
-	 *
-	 * After resetting the SEARCH state, reinitialize the bins using the current timestamp
-	 * and RTT.
-	 *
-	 */
-	initial_rtt = ca->search.bin_duration_us * SEARCH_BINS * 10 / search_window_duration_factor;
-
-	if (passed_bins > search_alpha * (initial_rtt / ca->search.bin_duration_us)) {
-
-
-		if (passed_bins > SEARCH_BINS){
-			bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
-		} else {
-			bictcp_search_reset(sk, RESET_BIN_DURATION_FALSE);
-		}
-	    	search_init_bins(sk, now_us, rtt_us);
-	    	return;
-	}
 
 
 	for (i = ca->search.curr_idx + 1; i < ca->search.curr_idx + passed_bins; i++){
