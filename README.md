@@ -93,7 +93,7 @@ Follow these steps to integrate SEARCH TCP into your kernel:
 	and change it to:
 	
 	```bash
-	u64 icsk_ca_priv[132 / sizeof(u64)];
+	u64 icsk_ca_priv[200 / sizeof(u64)];
 	```
 
 * Run the following commands:
