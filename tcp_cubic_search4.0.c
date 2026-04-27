@@ -78,6 +78,7 @@ module_param(hystart_low_window, int, 0644);
 MODULE_PARM_DESC(hystart_low_window, "lower bound cwnd for hybrid slow start");
 module_param(hystart_ack_delta_us, int, 0644);
 MODULE_PARM_DESC(hystart_ack_delta_us, "spacing between ack's indicating train (usecs)");
+
 //////////////////////// SEARCH ////////////////////////
 /*	enable SEARCH with command:
  		sudo sh -c "echo '1' > /sys/module/your_module_name/parameters/slow_start_mode"
@@ -93,9 +94,9 @@ MODULE_PARM_DESC(hystart_ack_delta_us, "spacing between ack's indicating train (
 #define SEARCH_EXTRA_SENT_BINS 40									/* Number of additional bins to cover data after shiftting by RTT */
 #define SEARCH_ACKED_BINS (SEARCH_BINS + SEARCH_EXTRA_ACKED_BINS)	/* Number of total bins in a acked window */
 #define SEARCH_SENT_BINS (SEARCH_BINS + SEARCH_EXTRA_SENT_BINS)		/* Number of total bins in a sent window */
-#define SEARCH_DRAIN_ACKEDSEG_THRESH 3        		/* ACKed-segment threshold to permit CWND increase during drain */
+#define SEARCH_DRAIN_ACKEDSEG_THRESH 16        		/* ACKed-segment threshold to permit CWND increase during drain */
 
-#define SEARCH_VERSION 40 
+#define SEARCH_VERSION 40 /* Jut for logging */
 
 /* Define an enum for the slow start mode */
 enum {
@@ -124,6 +125,7 @@ module_param(search_thresh, int, 0644);
 MODULE_PARM_DESC(search_thresh, "Threshold for exiting from slow start in percentage");
 module_param(debug_port, int, 0644);
 MODULE_PARM_DESC(debug_port, "Minimum threshold of missed bins before resetting SEARCH");
+
 
 
 /* BIC TCP Parameters */
@@ -620,28 +622,26 @@ static void search_init_bins(struct sock *sk, u32 now_us, u32 rtt_us)
 	u64 sent_value = 0;
 	u64 largest_val = 0;
 
-	if (ca->search.bin_duration_us == 0) 
+	if (ca->search.bin_duration_us == 0)
 		ca->search.bin_duration_us = (rtt_us * search_window_duration_factor) / (SEARCH_BINS * 10);
-
+	
 	ca->search.bin_end_us = now_us + ca->search.bin_duration_us;
 	ca->search.curr_idx = 0;
 
-
-	acked_value = tp->bytes_acked;
 	sent_value = tp->bytes_sent;
+	acked_value = tp->bytes_acked;
 
 	/* 
 	 * Prevent bin overflow by right-shifting both acked and sent values
 	 * proportionally if either exceeds MAX_US_INT. This ensures consistent scaling
 	 * across arrays.
 	 */
-	if (acked_value > MAX_US_INT || sent_value > MAX_US_INT) {
+	if (acked_value > MAX_US_INT || sent_value > MAX_US_INT){
 		largest_val = (acked_value > sent_value) ? acked_value : sent_value;
-		amount_scaled = search_bit_shifting(sk, largest_val);
+		amount_scaled = search_bit_shifting(sk, largest_val);		
 		acked_value >>= amount_scaled;
-		sent_value  >>= amount_scaled;
+		sent_value >>= amount_scaled;
 	}
-
 	ca->search.acked_bin[0] = acked_value;
 	ca->search.sent_bin[0] = sent_value;
 }
@@ -663,14 +663,22 @@ static void search_update_bins(struct sock *sk, u32 now_us, u32 rtt_us)
 	u32 passed_bins = 0;
 	u32 i = 0;
 	u64 acked_value = 0;
-	u64 sent_value = 0;
+	u64 sent_value=0;
 	u8 amount_scaled = 0; 
 	u64 largest_val = 0;
 
+	/* 
+	*  The flow is application-limited: reset SEARCH while preserving the
+	* existing bin duration.
+	*/
+	if (tp->app_limited) {
+		bictcp_search_reset(sk, RESET_BIN_DURATION_FALSE); 
+		search_init_bins(sk, now_us, rtt_us);
+		return;
+	}
 
 	/* If passed_bins greater than 1, it means we have some missed bins */
 	passed_bins = ((now_us - ca->search.bin_end_us) / ca->search.bin_duration_us) + 1;
-
 
 	for (i = ca->search.curr_idx + 1; i < ca->search.curr_idx + passed_bins; i++){
 
@@ -678,6 +686,7 @@ static void search_update_bins(struct sock *sk, u32 now_us, u32 rtt_us)
 		ca->search.sent_bin[i % SEARCH_SENT_BINS] = ca->search.sent_bin[ca->search.curr_idx % SEARCH_SENT_BINS];
 	}
 
+	
 	ca->search.bin_end_us += passed_bins * ca->search.bin_duration_us;
 	ca->search.curr_idx += passed_bins;
 
@@ -764,6 +773,30 @@ static void search_compute_target_cwnd(struct sock *sk, u32 now_us, u32 rtt_us)
 	}
 }
 
+/* Function to log ACK analysis information */
+static void search_log_ack_info(struct sock *sk, u32 rtt_us, u8 slow_start_status)
+{
+	struct tcp_sock *tp = tcp_sk(sk);
+	struct bictcp *ca = inet_csk_ca(sk);
+
+	u32 now_us = bictcp_clock_us(sk);
+
+	search_print_header(ca);
+	printk(KERN_CONT "ACK_FUNC_INFO: [now %u] [total_byte_acked %llu] [rtt_us %u] [num_lost %u] [total_retrans %u] [cwnd_pkt %u] [ssthresh %u] [mss %u] [ss_status %u] [delivered_rate %u] [rate_interval_us %u] [sk_pacing_rate %lu] [snd_nxt %u] [snd_una %u] [app_limited %u] [rate_app_limited %u] [tp_delivered %u] [total_bytes_sent %llu] \n", 
+		now_us, tp->bytes_acked, rtt_us, tp->lost_out, tp->total_retrans, tcp_snd_cwnd(tp), tp->snd_ssthresh, tp->mss_cache, slow_start_status, tp->rate_delivered, tp->rate_interval_us, sk->sk_pacing_rate, tp->snd_nxt, tp->snd_una, tp->app_limited, tp->rate_app_limited, tp->delivered, tp->bytes_sent);
+}
+
+/* Function to log SEARCH analysis information */
+static void search_log_info(struct sock *sk, u32 rtt_us, u64 curr_delv_bytes, u64 prev_sent_bytes, s64 norm_diff)
+{
+	struct bictcp *ca = inet_csk_ca(sk);
+	
+	u32 now_us = bictcp_clock_us(sk);
+
+	search_print_header(ca);
+	printk(KERN_CONT "SEARCH[%u]_INFO: [now %u] [bin_duration %u] [rtt_us %u] [curr_delv %llu] [prev_sent %llu] [norm_100 %lld] [scale_factor %u] [curr_idx %u]\n", 
+	  SEARCH_VERSION, now_us, ca->search.bin_duration_us, rtt_us, curr_delv_bytes, prev_sent_bytes, norm_diff, ca->search.scale_factor, ca->search.curr_idx);
+}
 /**
  * search_update - Update SEARCH bins and evaluate slow start exit conditions
  *
@@ -785,26 +818,28 @@ static void search_compute_target_cwnd(struct sock *sk, u32 now_us, u32 rtt_us)
  */
 static void search_update(struct sock *sk, u32 rtt_us)
 {
+
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct bictcp *ca = inet_csk_ca(sk);
 
 	s32 prev_idx = 0;
-	u64 curr_delv_bytes = 0; 
+	u64 curr_delv_bytes = 0;
 	u64 prev_sent_bytes = 0;
-	s32 norm_diff = 0;
+	s64 norm_diff = 0;
 	u32 now_us = bictcp_clock_us(sk);
 	u32 fraction = 0;
 	u32 segs_acked = 0;
 	u32 snd_cnt = 0;
 	u32 new_cwnd = 0;
 
-
 	/* If SEARCH is not in Drain phase*/
 	if (ca->search.search_cwnd_reduction_to_target == 0) {
 
 		/* by receiving the first ack packet, initialize bin duration and bin end time */
-		if (ca->search.curr_idx < 0) {  
+		if (ca->search.curr_idx < 0) { 
 			search_init_bins(sk, now_us, rtt_us);
+			// logging information about SEARCH analysis
+			search_log_info(sk, rtt_us, curr_delv_bytes, prev_sent_bytes, norm_diff);
 			return;
 		}
 
@@ -819,7 +854,6 @@ static void search_update(struct sock *sk, u32 rtt_us)
 
 		if (prev_idx >= SEARCH_BINS && (ca->search.curr_idx - prev_idx) < SEARCH_EXTRA_SENT_BINS - 1) {
 
-			/* Calculate delivered bytes for the current and previous windows */
 			curr_delv_bytes = search_compute_delivered_window(sk,
 									  ca->search.curr_idx - SEARCH_BINS,
 									  ca->search.curr_idx);
@@ -827,21 +861,21 @@ static void search_update(struct sock *sk, u32 rtt_us)
 			fraction = ((rtt_us % ca->search.bin_duration_us) * 100 / ca->search.bin_duration_us);
 
 			prev_sent_bytes = search_compute_sent_window(sk,
-									  prev_idx - SEARCH_BINS,
-									  prev_idx,
-									  fraction);
+							  prev_idx - SEARCH_BINS,
+							  prev_idx,
+							  fraction);
 
 			if (prev_sent_bytes > 0) {
-				norm_diff = (prev_sent_bytes - curr_delv_bytes) * 100 / prev_sent_bytes;
-
+				s64 diff = (s64)prev_sent_bytes - (s64)curr_delv_bytes;
+				norm_diff = diff * 100 / (s64)prev_sent_bytes;
 				/* check for exit condition */
-				if ((2 * prev_sent_bytes) >= curr_delv_bytes && norm_diff >= search_thresh){
-
+				if (prev_sent_bytes >= curr_delv_bytes && norm_diff >= search_thresh){
 					/* Compute target cwnd but do NOT apply it yet */
 					search_compute_target_cwnd(sk, now_us, rtt_us);
 					/* Enable SEARCH Drain phase*/
 					ca->search.search_cwnd_reduction_to_target = 1;
 					ca->search.prior_delivered = tp->delivered;
+					ca->search.search_drain_ackedseg = 0;
 				}
 			}
 		}
@@ -862,19 +896,24 @@ static void search_update(struct sock *sk, u32 rtt_us)
 		if (ca->search.search_drain_ackedseg >= SEARCH_DRAIN_ACKEDSEG_THRESH) {
 		    snd_cnt = ca->search.search_drain_ackedseg / SEARCH_DRAIN_ACKEDSEG_THRESH;
 		    ca->search.search_drain_ackedseg %= SEARCH_DRAIN_ACKEDSEG_THRESH;
-		}
+		}	
 
 		new_cwnd = max(tcp_packets_in_flight(tp) + snd_cnt, ca->search.search_targeted_cwnd);
 
+		search_print_header(ca);
+		printk(KERN_CONT "SEARCH[%u]_INFO: [now %u] [segs_acked %u] [prior_delivered %u] [search_drain_ackedseg %u] [new_cwnd %u] [cwnd %d] [in_flight %u]\n", 
+		  SEARCH_VERSION, now_us, segs_acked, ca->search.prior_delivered, ca->search.search_drain_ackedseg, new_cwnd, tcp_snd_cwnd(tp), tcp_packets_in_flight(tp));
+
 		tcp_snd_cwnd_set(tp, new_cwnd);   // like tcp_cwnd_reduction() in tcp_input.c
 
-		/* Drain completed: lock CWND and exit slow start */
-		if (tcp_snd_cwnd(tp) == ca->search.search_targeted_cwnd){
-			tp->snd_ssthresh = tcp_snd_cwnd(tp);
-			bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+		if (new_cwnd == ca->search.search_targeted_cwnd) {
+		    tp->snd_ssthresh = ca->search.search_targeted_cwnd;
+		    bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
 		}
-
 	}
+
+	// logging information about SEARCH analysis
+	search_log_info(sk, rtt_us, curr_delv_bytes, prev_sent_bytes, norm_diff);
 }
 
 //////////////////////////////////////////////////////////////
@@ -909,6 +948,11 @@ __bpf_kfunc static void cubictcp_acked(struct sock *sk, const struct ack_sample 
 			hystart_update(sk, delay);
 	}
 
+	/////////////////logging-ACK information/////////////////
+	if (tcp_in_slow_start(tp))
+		search_log_ack_info(sk, delay, 1);
+	else 
+		search_log_ack_info(sk, delay, 2);
 }
 
 static struct tcp_congestion_ops cubictcp __read_mostly = {
@@ -920,7 +964,7 @@ static struct tcp_congestion_ops cubictcp __read_mostly = {
 	.cwnd_event	= cubictcp_cwnd_event,
 	.pkts_acked     = cubictcp_acked,
 	.owner		= THIS_MODULE,
-	.name		= "cubic_search",
+	.name		= "cubic_s_dynth",
 };
 
 BTF_KFUNCS_START(tcp_cubic_check_kfunc_ids)
@@ -992,6 +1036,5 @@ MODULE_VERSION("2.3");
 
 
 // use sent_bytes
-// App_limited is removed
 /* use delivered (in packet) for cwnd set in drain (delivered consider 
 	retransmition). ( I can also instead use tp->bytes_acked / mss) */
