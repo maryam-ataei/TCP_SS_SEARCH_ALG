@@ -94,7 +94,7 @@ MODULE_PARM_DESC(hystart_ack_delta_us, "spacing between ack's indicating train (
 #define SEARCH_EXTRA_SENT_BINS 40									/* Number of additional bins to cover data after shiftting by RTT */
 #define SEARCH_ACKED_BINS (SEARCH_BINS + SEARCH_EXTRA_ACKED_BINS)	/* Number of total bins in a acked window */
 #define SEARCH_SENT_BINS (SEARCH_BINS + SEARCH_EXTRA_SENT_BINS)		/* Number of total bins in a sent window */
-#define SEARCH_DRAIN_ACKEDSEG_THRESH 16        		/* ACKed-segment threshold to permit CWND increase during drain */
+#define SEARCH_DRAIN_ACKEDSEG_THRESH 3        		/* ACKed-segment threshold to permit CWND increase during drain */
 
 #define SEARCH_VERSION 40 /* Jut for logging */
 
