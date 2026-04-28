@@ -212,12 +212,6 @@ static inline void bictcp_hystart_reset(struct sock *sk)
 	ca->hystart.sample_cnt = 0;
 }
 
-static inline void search_print_header(struct bictcp *ca)
-{
-	printk(KERN_INFO "[CCRG]: [flow pointer: 0x%p] ",
-		ca);
-}
-
 __bpf_kfunc static void cubictcp_init(struct sock *sk)
 {
 	struct bictcp *ca = inet_csk_ca(sk);
@@ -537,10 +531,6 @@ static void hystart_update(struct sock *sk, u32 delay)
 					      LINUX_MIB_TCPHYSTARTTRAINCWND,
 					      tcp_snd_cwnd(tp));
 				tp->snd_ssthresh = tcp_snd_cwnd(tp);
-
-				search_print_header(ca);
-				printk(KERN_CONT "HyStart_INFO: [now %u] [exit condition was met [cwnd %u] [ssthresh %u] [curr_rtt %u] [delay_min %u]\n", bictcp_clock_us(sk), tcp_snd_cwnd(tp), tp->snd_ssthresh, ca->hystart.curr_rtt, ca->delay_min);				
-
 			}
 		}
 	}
@@ -561,16 +551,10 @@ static void hystart_update(struct sock *sk, u32 delay)
 					      LINUX_MIB_TCPHYSTARTDELAYCWND,
 					      tcp_snd_cwnd(tp));
 				tp->snd_ssthresh = tcp_snd_cwnd(tp);
-
-				search_print_header(ca);
-				printk(KERN_CONT "HyStart_INFO: [now %u] [exit condition was met [cwnd %u] [ssthresh %u] [curr_rtt %u] [delay_min %u]\n", bictcp_clock_us(sk), tcp_snd_cwnd(tp), tp->snd_ssthresh, ca->hystart.curr_rtt, ca->delay_min);				
-
 			}
 		}
 	}
 }
-
-//////////////////////// SEARCH ////////////////////////
 
 
 /* Scale bin value to fit bin size, rescale previous bins.
@@ -773,30 +757,6 @@ static void search_compute_target_cwnd(struct sock *sk, u32 now_us, u32 rtt_us)
 	}
 }
 
-/* Function to log ACK analysis information */
-static void search_log_ack_info(struct sock *sk, u32 rtt_us, u8 slow_start_status)
-{
-	struct tcp_sock *tp = tcp_sk(sk);
-	struct bictcp *ca = inet_csk_ca(sk);
-
-	u32 now_us = bictcp_clock_us(sk);
-
-	search_print_header(ca);
-	printk(KERN_CONT "ACK_FUNC_INFO: [now %u] [total_byte_acked %llu] [rtt_us %u] [num_lost %u] [total_retrans %u] [cwnd_pkt %u] [ssthresh %u] [mss %u] [ss_status %u] [delivered_rate %u] [rate_interval_us %u] [sk_pacing_rate %lu] [snd_nxt %u] [snd_una %u] [app_limited %u] [rate_app_limited %u] [tp_delivered %u] [total_bytes_sent %llu] \n", 
-		now_us, tp->bytes_acked, rtt_us, tp->lost_out, tp->total_retrans, tcp_snd_cwnd(tp), tp->snd_ssthresh, tp->mss_cache, slow_start_status, tp->rate_delivered, tp->rate_interval_us, sk->sk_pacing_rate, tp->snd_nxt, tp->snd_una, tp->app_limited, tp->rate_app_limited, tp->delivered, tp->bytes_sent);
-}
-
-/* Function to log SEARCH analysis information */
-static void search_log_info(struct sock *sk, u32 rtt_us, u64 curr_delv_bytes, u64 prev_sent_bytes, s64 norm_diff)
-{
-	struct bictcp *ca = inet_csk_ca(sk);
-	
-	u32 now_us = bictcp_clock_us(sk);
-
-	search_print_header(ca);
-	printk(KERN_CONT "SEARCH[%u]_INFO: [now %u] [bin_duration %u] [rtt_us %u] [curr_delv %llu] [prev_sent %llu] [norm_100 %lld] [scale_factor %u] [curr_idx %u]\n", 
-	  SEARCH_VERSION, now_us, ca->search.bin_duration_us, rtt_us, curr_delv_bytes, prev_sent_bytes, norm_diff, ca->search.scale_factor, ca->search.curr_idx);
-}
 /**
  * search_update - Update SEARCH bins and evaluate slow start exit conditions
  *
@@ -838,8 +798,6 @@ static void search_update(struct sock *sk, u32 rtt_us)
 		/* by receiving the first ack packet, initialize bin duration and bin end time */
 		if (ca->search.curr_idx < 0) { 
 			search_init_bins(sk, now_us, rtt_us);
-			// logging information about SEARCH analysis
-			search_log_info(sk, rtt_us, curr_delv_bytes, prev_sent_bytes, norm_diff);
 			return;
 		}
 
@@ -900,10 +858,6 @@ static void search_update(struct sock *sk, u32 rtt_us)
 
 		new_cwnd = max(tcp_packets_in_flight(tp) + snd_cnt, ca->search.search_targeted_cwnd);
 
-		search_print_header(ca);
-		printk(KERN_CONT "SEARCH[%u]_INFO: [now %u] [segs_acked %u] [prior_delivered %u] [search_drain_ackedseg %u] [new_cwnd %u] [cwnd %d] [in_flight %u]\n", 
-		  SEARCH_VERSION, now_us, segs_acked, ca->search.prior_delivered, ca->search.search_drain_ackedseg, new_cwnd, tcp_snd_cwnd(tp), tcp_packets_in_flight(tp));
-
 		tcp_snd_cwnd_set(tp, new_cwnd);   // like tcp_cwnd_reduction() in tcp_input.c
 
 		if (new_cwnd == ca->search.search_targeted_cwnd) {
@@ -911,9 +865,6 @@ static void search_update(struct sock *sk, u32 rtt_us)
 		    bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
 		}
 	}
-
-	// logging information about SEARCH analysis
-	search_log_info(sk, rtt_us, curr_delv_bytes, prev_sent_bytes, norm_diff);
 }
 
 //////////////////////////////////////////////////////////////
@@ -947,12 +898,6 @@ __bpf_kfunc static void cubictcp_acked(struct sock *sk, const struct ack_sample 
 		} else if (slow_start_mode == SS_HYSTART && !ca->hystart.found)
 			hystart_update(sk, delay);
 	}
-
-	/////////////////logging-ACK information/////////////////
-	if (tcp_in_slow_start(tp))
-		search_log_ack_info(sk, delay, 1);
-	else 
-		search_log_ack_info(sk, delay, 2);
 }
 
 static struct tcp_congestion_ops cubictcp __read_mostly = {
