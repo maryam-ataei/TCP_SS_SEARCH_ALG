@@ -644,7 +644,7 @@ static void search_update_bins(struct sock *sk, u32 now_us, u32 rtt_us)
 	*  The flow is application-limited: reset SEARCH while preserving the
 	* existing bin duration.
 	*/
-	if (tp->app_limited) {
+	if (tp->rate_app_limited) {
 		bictcp_search_reset(ca, RESET_BIN_DURATION_FALSE); 
 		search_init_bins(sk, now_us, rtt_us);
 		return;
