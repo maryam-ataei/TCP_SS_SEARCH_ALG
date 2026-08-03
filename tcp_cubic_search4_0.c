@@ -607,7 +607,7 @@ static void search_init_bins(struct sock *sk, u32 now_us, u32 rtt_us)
 	u64 largest_val = 0;
 
 	if (ca->search.bin_duration_us == 0)
-		ca->search.bin_duration_us = (rtt_us * search_window_duration_factor) / (SEARCH_BINS * 10);
+		ca->search.bin_duration_us = max_t(u32, 1, (rtt_us * search_window_duration_factor) / (SEARCH_BINS * 10));
 	
 	ca->search.bin_end_us = now_us + ca->search.bin_duration_us;
 	ca->search.curr_idx = 0;
@@ -728,36 +728,41 @@ static inline u64 search_compute_sent_window(struct sock *sk, s32 left, s32 righ
  * Estimates the target CWND based on delivered bytes from a past RTT window
  * (BDP approximation) and prepares SEARCH to drain excess in-flight data.
  */
-static void search_compute_target_cwnd(struct sock *sk, u32 now_us, u32 rtt_us)
+static bool search_compute_target_cwnd(struct sock *sk)
 {
-	struct tcp_sock *tp = tcp_sk(sk);
-	struct bictcp *ca = inet_csk_ca(sk);
-	s32 cong_idx = 0;
-	u32 initial_rtt = 0;
-	u64 overshoot_bytes = 0;
-	u64 overshoot_bytes_rescaled = 0;
-	u32 overshoot_cwnd = 0;
-	u32 rtt_bins = 0;
-	
+    struct tcp_sock *tp = tcp_sk(sk);
+    struct bictcp *ca = inet_csk_ca(sk);
+    s32 cong_idx;
+    u32 initial_rtt;
+    u32 rtt_bins;
+    u64 delivered_scaled;
+    u64 delivered_bytes;
+    u64 target_pkts;
 
- 	initial_rtt = ca->search.bin_duration_us * SEARCH_BINS * 10 / search_window_duration_factor;
+    if (!ca->search.bin_duration_us || search_window_duration_factor <= 0)
+        return false;
 
- 	/* Number of bins spanning ~1 RTT */
- 	rtt_bins = (initial_rtt + ca->search.bin_duration_us - 1) / ca->search.bin_duration_us; /* ceil*/
+    initial_rtt = ca->search.bin_duration_us * SEARCH_BINS * 10 / search_window_duration_factor;
 
- 	cong_idx = ca->search.curr_idx - rtt_bins;
+    rtt_bins = (initial_rtt + ca->search.bin_duration_us - 1) / ca->search.bin_duration_us;
 
- 	if (ca->search.curr_idx - cong_idx <= SEARCH_ACKED_BINS - 1){
+    if (rtt_bins == 0)
+        rtt_bins = 1;
 
-	 	/* Calculate the overshoot based on the delivered bytes between cong_idx and the current index */
-	 	overshoot_bytes = search_compute_delivered_window(sk, cong_idx, ca->search.curr_idx);
+    cong_idx = ca->search.curr_idx - (s32)rtt_bins;
 
-	 	overshoot_bytes_rescaled = overshoot_bytes << ca->search.scale_factor;
+    if (cong_idx < 0 || ca->search.curr_idx - cong_idx > SEARCH_ACKED_BINS - 1)
+        return false;
 
-	 	overshoot_cwnd = overshoot_bytes_rescaled  / tp->mss_cache;
+    delivered_scaled = search_compute_delivered_window(sk, cong_idx, ca->search.curr_idx);
 
-	 	ca->search.search_targeted_cwnd = max(overshoot_cwnd, (u32)TCP_INIT_CWND);
-	}
+    delivered_bytes = delivered_scaled << ca->search.scale_factor;
+
+    target_pkts = div_u64(delivered_bytes, tp->mss_cache);
+
+    ca->search.search_targeted_cwnd = max((u32)target_pkts, (u32)TCP_INIT_CWND);
+
+    return true;
 }
 
 /**
@@ -811,8 +816,7 @@ static void search_update(struct sock *sk, u32 rtt_us)
 		search_update_bins(sk, now_us, rtt_us);
 
 		/* check if there is enough bins after shift for computing previous window */
-		prev_idx = ca->search.curr_idx - (rtt_us / ca->search.bin_duration_us);
-
+		prev_idx = ca->search.curr_idx - (s32)(rtt_us / ca->search.bin_duration_us);
 		if (prev_idx >= SEARCH_BINS && (ca->search.curr_idx - prev_idx) < SEARCH_EXTRA_SENT_BINS - 1) {
 
 			curr_delv_bytes = search_compute_delivered_window(sk,
@@ -832,11 +836,12 @@ static void search_update(struct sock *sk, u32 rtt_us)
 				/* check for exit condition */
 				if (prev_sent_bytes >= curr_delv_bytes && norm_diff >= search_thresh){
 					/* Compute target cwnd but do NOT apply it yet */
-					search_compute_target_cwnd(sk, now_us, rtt_us);
-					/* Enable SEARCH Drain phase*/
-					ca->search.search_cwnd_reduction_to_target = 1;
-					ca->search.prior_delivered = tp->delivered;
-					ca->search.search_drain_ackedseg = 0;
+					if (search_compute_target_cwnd(sk)) {
+						/* Enable drain phase */
+				        ca->search.search_cwnd_reduction_to_target = 1;
+				        ca->search.prior_delivered = tp->delivered;
+				        ca->search.search_drain_ackedseg = 0;
+				    }
 				}
 			}
 		}
