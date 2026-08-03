@@ -83,13 +83,11 @@
 #include <netinet/cc/cc.h>
 #include <netinet/cc/cc_module.h>
 #include <sys/syslog.h>
-/* SEARCH_begin */
 #include <netinet/cc/cc_newreno_search.h>
 #include <sys/khelp.h>
 #include <netinet/khelp/h_ertt.h>
 #include <sys/time.h>
 #include <netinet/tcp_hpts.h>
-/* SEARCH_end */
 
 static void	newreno_cb_destroy(struct cc_var *ccv);
 static void	newreno_ack_received(struct cc_var *ccv, uint16_t type);
@@ -107,7 +105,6 @@ VNET_DECLARE(uint32_t, newreno_beta);
 VNET_DECLARE(uint32_t, newreno_beta_ecn);
 #define V_newreno_beta_ecn VNET(newreno_beta_ecn)
 
-/* SEARCH_begin */
 /*
  * SEARCH: Congestion control algorithm registration.
  *
@@ -116,7 +113,6 @@ VNET_DECLARE(uint32_t, newreno_beta_ecn);
  */
 struct cc_algo newreno_search_cc_algo = {
 	.name = "newreno_search", 
-	/* SEARCH_end */
 	.cb_destroy = newreno_cb_destroy,
 	.ack_received = newreno_ack_received,
 	.after_idle = newreno_after_idle,
@@ -130,7 +126,6 @@ struct cc_algo newreno_search_cc_algo = {
 };
  
 
-/* SEARCH_begin */
 /*
  * SEARCH: Reset state and measurement bins.
  *
@@ -243,12 +238,10 @@ newreno_cb_init(struct cc_var *ccv, void *ptr)
 	nreno->css_fas_at_css_entry = 0;
 	nreno->css_lowrtt_fas = 0;
 	nreno->css_last_fas = 0;
-	/* SEARCH_begin */
 	nreno->last_rtt_sample = 0;
 	nreno->search_cumulative_acked_bytes = 0;
 	if (V_use_search)
 		search_reset(nreno, RESET_BIN_DURATION_TRUE);
-	/* SEARCH_end */
 	return (0);
 }
 
@@ -258,7 +251,6 @@ newreno_cb_destroy(struct cc_var *ccv)
 	free(ccv->cc_data, M_CC_MEM);
 }
 
-/* SEARCH_begin */
 /*
  * SEARCH: Get current time in microseconds.
  *
@@ -655,7 +647,6 @@ search_update(struct cc_var *ccv, int64_t now_us, int64_t rtt_us)
 	/* Never let ordinary slow-start growth run on the same ACK as drain. */
 	return (true);
 }
-/* SEARCH_end */
 
 static void
 newreno_ack_received(struct cc_var *ccv, uint16_t type)
@@ -664,7 +655,6 @@ newreno_ack_received(struct cc_var *ccv, uint16_t type)
 	
 	nreno = ccv->cc_data;
 
-	/* SEARCH_begin */
 	uint64_t now_us = 0;
 	uint64_t rtt_us = 0;
 	bool search_hold_cwnd = false;
@@ -687,7 +677,6 @@ newreno_ack_received(struct cc_var *ccv, uint16_t type)
 	    !IN_RECOVERY(CCV(ccv, t_flags)) && rtt_us > 0 &&
 	    CCV(ccv, snd_cwnd) <= CCV(ccv, snd_ssthresh))
 		search_hold_cwnd = search_update(ccv, now_us, rtt_us);
-	/* SEARCH_end */
 	
 	if (type == CC_ACK && !IN_RECOVERY(CCV(ccv, t_flags)) &&
 	    (ccv->flags & CCF_CWND_LIMITED)) {
@@ -840,9 +829,7 @@ newreno_after_idle(struct cc_var *ccv)
 		nreno->newreno_flags |= CC_NEWRENO_HYSTART_ENABLED;
 		newreno_log_hystart_event(ccv, nreno, 12, CCV(ccv, snd_ssthresh));
 	}
-	/* SEARCH_begin */
 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
-	/* SEARCH_end */
 }
 
 /*
@@ -882,10 +869,8 @@ newreno_cong_signal(struct cc_var *ccv, uint32_t type)
 
 	switch (type) {
 	case CC_NDUPACK:
-		/* SEARCH_begin */
 		if (V_use_search)
 		 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
-		/* SEARCH_end */
 
 		if (nreno->newreno_flags & CC_NEWRENO_HYSTART_ENABLED) {
 			/* Make sure the flags are all off we had a loss */
@@ -906,10 +891,8 @@ newreno_cong_signal(struct cc_var *ccv, uint32_t type)
 		}
 		break;
 	case CC_ECN:
-		/* SEARCH_begin */
 		if (V_use_search)
 		 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
-		/* SEARCH_end */
 
 		if (nreno->newreno_flags & CC_NEWRENO_HYSTART_ENABLED) {
 			/* Make sure the flags are all off we had a loss */
@@ -924,10 +907,8 @@ newreno_cong_signal(struct cc_var *ccv, uint32_t type)
 		}
 		break;
 	case CC_RTO:
-		/* SEARCH_begin */
 		if (V_use_search)
 		 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
-		/* SEARCH_end */
 		CCV(ccv, snd_ssthresh) = max(min(CCV(ccv, snd_wnd),
 						 CCV(ccv, snd_cwnd)) / 2 / mss,
 					     2) * mss;
@@ -942,10 +923,8 @@ newreno_ctl_output(struct cc_var *ccv, struct sockopt *sopt, void *buf)
 	struct newreno *nreno;
 	struct cc_newreno_opts *opt;
 
-	/* SEARCH_begin */
 	if (sopt->sopt_valsize != sizeof(struct cc_newreno_opts))
 		return (EMSGSIZE);
-	/* SEARCH_end */
 	if (CC_ALGO(ccv->ccvc.tcp) != &newreno_search_cc_algo)
 		return (ENOPROTOOPT);
 
@@ -1026,7 +1005,7 @@ newreno_newround(struct cc_var *ccv, uint32_t round_cnt)
 			 * and give us hystart_css_rounds more rounds.
 			 */
 			if (ccv->flags & CCF_HYSTART_CONS_SSTH) {
-				/* SEARCH_begin */ //Comment out all cwnd and ssthresh setting or add flag if we use hystartpp
+				/* Comment out all cwnd and ssthresh setting or add flag if we use hystartpp */
 			 	if (V_use_hystartpp)
 					CCV(ccv, snd_ssthresh) = ((nreno->css_lowrtt_fas + nreno->css_fas_at_css_entry) / 2);
 			} else {
@@ -1039,7 +1018,6 @@ newreno_newround(struct cc_var *ccv, uint32_t round_cnt)
 		} else {
 			if (V_use_hystartpp)
 				CCV(ccv, snd_ssthresh) = CCV(ccv, snd_cwnd);
-			/* SEARCH_end */
 
 			/* Turn off the CSS flag */
 			nreno->newreno_flags &= ~CC_NEWRENO_HYSTART_IN_CSS;
@@ -1064,9 +1042,7 @@ newreno_rttsample(struct cc_var *ccv, uint32_t usec_rtt, uint32_t rxtcnt, uint32
 		 */
 		return;
 	}
-	/* SEARCH_begin */
 	nreno->last_rtt_sample = usec_rtt;	 
-	/* SEARCH_end */
 	nreno->css_rttsample_count++;
 	nreno->css_last_fas = fas;
 	if (nreno->css_current_round_minrtt > usec_rtt) {
@@ -1105,7 +1081,5 @@ SYSCTL_PROC(_net_inet_tcp_cc_newreno, OID_AUTO, beta_ecn,
     "New Reno beta ecn, specified as number between 1 and 100");
 
 
-/* SEARCH_begin */
 DECLARE_CC_MODULE(newreno, &newreno_search_cc_algo);
-/* SEARCH_end */
 MODULE_VERSION(newreno, 2);

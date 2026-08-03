@@ -6,13 +6,12 @@
  #include <netinet/cc/cc_module.h>
 -#include <netinet/cc/cc_newreno.h>
  #include <sys/syslog.h>
-+/* SEARCH_begin */
 +#include <netinet/cc/cc_newreno_search.h>
 +#include <sys/khelp.h>
 +#include <netinet/khelp/h_ertt.h>
 +#include <sys/time.h>
 +#include <netinet/tcp_hpts.h>
-+/* SEARCH_end */
+
  
  static void	newreno_cb_destroy(struct cc_var *ccv);
  static void	newreno_ack_received(struct cc_var *ccv, uint16_t type);
@@ -22,7 +21,7 @@
  
 -struct cc_algo newreno_cc_algo = {
 -	.name = "newreno",
-+/* SEARCH_begin */
+
 +/*
 + * SEARCH: Congestion control algorithm registration.
 + *
@@ -31,7 +30,7 @@
 + */
 +struct cc_algo newreno_search_cc_algo = {
 +	.name = "newreno_search", 
-+	/* SEARCH_end */
+
  	.cb_destroy = newreno_cb_destroy,
  	.ack_received = newreno_ack_received,
  	.after_idle = newreno_after_idle,
@@ -41,7 +40,7 @@
  };
 + 
 +
-+/* SEARCH_begin */
+
 +/*
 + * SEARCH: Reset state and measurement bins.
 + *
@@ -65,12 +64,10 @@
  	nreno->css_fas_at_css_entry = 0;
  	nreno->css_lowrtt_fas = 0;
  	nreno->css_last_fas = 0;
-+	/* SEARCH_begin */
 +	nreno->last_rtt_sample = 0;
 +	nreno->search_cumulative_acked_bytes = 0;
 +	if (V_use_search)
 +		search_reset(nreno, RESET_BIN_DURATION_TRUE);
-+	/* SEARCH_end */
  	return (0);
  }
  
@@ -78,7 +75,7 @@
  	free(ccv->cc_data, M_CC_MEM);
  }
  
-+/* SEARCH_begin */
+
 +/*
 + * SEARCH: Get current time in microseconds.
 + *
@@ -440,7 +437,7 @@
 +
 +	return false;
 +}
-+/* SEARCH_end */
+
 +
  static void
  newreno_ack_received(struct cc_var *ccv, uint16_t type)
@@ -449,7 +446,6 @@
  	
  	nreno = ccv->cc_data;
 +
-+	/* SEARCH_begin */
 +	uint64_t now_us = 0;
 +	uint64_t rtt_us = 0;
 +
@@ -462,7 +458,6 @@
 +
 +	// Update cumulative delivered bytes for SEARCH analysis
 +	nreno->search_cumulative_acked_bytes += ccv->bytes_this_ack; 
-+	/* SEARCH_end */
 +	
  	if (type == CC_ACK && !IN_RECOVERY(CCV(ccv, t_flags)) &&
  	    (ccv->flags & CCF_CWND_LIMITED)) {
@@ -506,7 +501,6 @@
 -						nreno->css_entered_at_round = nreno->css_current_round;
 -						newreno_log_hystart_event(ccv, nreno, 2, rtt_thresh);
 +
-+			/* SEARCH_begin */
 +			if (V_use_hystartpp) {
 +				if ((ccv->flags & CCF_HYSTART_ALLOWED) &&
 +					(nreno->newreno_flags & CC_NEWRENO_HYSTART_ENABLED) &&
@@ -546,7 +540,6 @@
  					}
  				}
  			}
-+			/* SEARCH_end */
 +
  			if (CCV(ccv, snd_nxt) == CCV(ccv, snd_max))
  				incr = min(ccv->bytes_this_ack,
@@ -556,14 +549,11 @@
  			/* Only if Hystart is enabled will the flag get set */
  			if (nreno->newreno_flags & CC_NEWRENO_HYSTART_IN_CSS) {
 -				incr /= hystart_css_growth_div;
-+				/* SEARCH_begin */
 +				if (V_use_hystartpp)
 +					incr /= hystart_css_growth_div;
-+				/* SEARCH_end */
  				newreno_log_hystart_event(ccv, nreno, 3, incr);
  			}
 +
-+		 	/* SEARCH_begin */
 +		 	/* 
 +			 * Invoke SEARCH slow start exit detector:
 +			 * - Monitors throughput evolution over time windows.
@@ -575,7 +565,6 @@
 +    				incr = 0;	/* freeze cwnd increase upon exit detection */
 +				}
 +		 	}
-+		 	/* SEARCH_end */
  		}
  		/* ABC is on by default, so incr equals 0 frequently. */
  		if (incr > 0)
@@ -583,9 +572,7 @@
  		nreno->newreno_flags |= CC_NEWRENO_HYSTART_ENABLED;
  		newreno_log_hystart_event(ccv, nreno, 12, CCV(ccv, snd_ssthresh));
  	}
-+	/* SEARCH_begin */
 +	search_reset(nreno, RESET_BIN_DURATION_TRUE);
-+	/* SEARCH_end */
  }
  
  /*
@@ -593,10 +580,8 @@
  
  	switch (type) {
  	case CC_NDUPACK:
-+		/* SEARCH_begin */
 +		if (V_use_search)
 +		 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
-+		/* SEARCH_end */
 +
  		if (nreno->newreno_flags & CC_NEWRENO_HYSTART_ENABLED) {
  			/* Make sure the flags are all off we had a loss */
@@ -605,10 +590,8 @@
  		}
  		break;
  	case CC_ECN:
-+		/* SEARCH_begin */
 +		if (V_use_search)
 +		 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
-+		/* SEARCH_end */
 +
  		if (nreno->newreno_flags & CC_NEWRENO_HYSTART_ENABLED) {
  			/* Make sure the flags are all off we had a loss */
@@ -617,10 +600,8 @@
  		}
  		break;
  	case CC_RTO:
-+		/* SEARCH_begin */
 +		if (V_use_search)
 +		 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
-+		/* SEARCH_end */
  		CCV(ccv, snd_ssthresh) = max(min(CCV(ccv, snd_wnd),
  						 CCV(ccv, snd_cwnd)) / 2 / mss,
  					     2) * mss;
@@ -628,12 +609,10 @@
  	struct newreno *nreno;
  	struct cc_newreno_opts *opt;
  
-+	/* SEARCH_begin */
  	if (sopt->sopt_valsize != sizeof(struct cc_newreno_opts))
  		return (EMSGSIZE);
 -
 -	if (CC_ALGO(ccv->ccvc.tcp) != &newreno_cc_algo)
-+	/* SEARCH_end */
 +	if (CC_ALGO(ccv->ccvc.tcp) != &newreno_search_cc_algo)
  		return (ENOPROTOOPT);
  
@@ -643,7 +622,7 @@
  			 */
  			if (ccv->flags & CCF_HYSTART_CONS_SSTH) {
 -				CCV(ccv, snd_ssthresh) = ((nreno->css_lowrtt_fas + nreno->css_fas_at_css_entry) / 2);
-+				/* SEARCH_begin */ //Comment out all cwnd and ssthresh setting or add flag if we use hystartpp
++				/* Comment out all cwnd and ssthresh setting or add flag if we use hystartpp */ 
 +			 	if (V_use_hystartpp)
 +					CCV(ccv, snd_ssthresh) = ((nreno->css_lowrtt_fas + nreno->css_fas_at_css_entry) / 2);
  			} else {
@@ -659,7 +638,6 @@
 -			CCV(ccv, snd_ssthresh) = CCV(ccv, snd_cwnd);
 +			if (V_use_hystartpp)
 +				CCV(ccv, snd_ssthresh) = CCV(ccv, snd_cwnd);
-+			/* SEARCH_end */
 +
  			/* Turn off the CSS flag */
  			nreno->newreno_flags &= ~CC_NEWRENO_HYSTART_IN_CSS;
@@ -668,9 +646,7 @@
  		 */
  		return;
  	}
-+	/* SEARCH_begin */
 +	nreno->last_rtt_sample = usec_rtt;	 
-+	/* SEARCH_end */
  	nreno->css_rttsample_count++;
  	nreno->css_last_fas = fas;
  	if (nreno->css_current_round_minrtt > usec_rtt) {
@@ -681,8 +657,8 @@
 -DECLARE_CC_MODULE(newreno, &newreno_cc_algo);
 -MODULE_VERSION(newreno, 2);
 +
-+/* SEARCH_begin */
+
 +DECLARE_CC_MODULE(newreno, &newreno_search_cc_algo);
-+/* SEARCH_end */
+
 +MODULE_VERSION(newreno, 2);
 \ No newline at end of file

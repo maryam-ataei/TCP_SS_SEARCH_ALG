@@ -27,7 +27,7 @@
 #ifndef _CC_NEWRENO_H
 #define _CC_NEWRENO_H
  
-/* SEARCH_begin */
+
 #define CCALGONAME_NEWRENO "newreno_search"
  
 typedef uint16_t search_bin_t;
@@ -36,23 +36,22 @@ typedef uint16_t search_bin_t;
 #define V_use_search 1
 #define V_use_hystartpp 0
 
+#define V_CWND_ROLLBACK 1
 #define SEARCH_WINDOW_SIZE_FACTOR 35
 #define SEARCH_WIN_BINS 10
-#define SEARCH_EXTRA_ACKED_BINS 1
-#define SEARCH_EXTRA_SENT_BINS 40
+#define SEARCH_EXTRA_ACKED_BINS 30
+#define SEARCH_EXTRA_SENT_BINS 35
 #define SEARCH_ACKED_BINS (SEARCH_WIN_BINS + SEARCH_EXTRA_ACKED_BINS)
 #define SEARCH_SENT_BINS (SEARCH_WIN_BINS + SEARCH_EXTRA_SENT_BINS)
-#define SEARCH_THRESH 26
+#define SEARCH_THRESH 35
 #define SEARCH_ALPHA 2
-#define SEARCH_DRAIN_ACKEDSEG_THRESH 3
-#define SEARCH_VERSION 40
 
 enum unset_bin_duration {
 	RESET_BIN_DURATION_TRUE,		// Reset bin duration
 	RESET_BIN_DURATION_FALSE		// Do not reset bin duration
 };
  
-/* SEARCH_end */
+
 
 struct newreno {
 	uint32_t beta;
@@ -68,19 +67,15 @@ struct newreno {
 	uint32_t css_lowrtt_fas;
 	uint32_t css_last_fas;
  
-	/* SEARCH_begin */
-	uint32_t last_rtt_sample;							/* Most recent RTT sample (in microseconds) from rttsample() */
-	uint32_t search_bin_duration_us;					/* duration of each bin in microsecond */
-	int32_t  search_curr_idx;							/* total number of bins */
-	uint64_t search_bin_end_us;							/* end time of the latest bin in microsecond */
+	
+	uint32_t last_rtt_sample;					/* Most recent RTT sample (in microseconds) from rttsample() */
+	uint32_t search_bin_duration_us;			/* duration of each bin in microsecond */
+	int32_t  search_curr_idx;					/* total number of bins */
+	uint64_t search_bin_end_us;					/* end time of the latest bin in microsecond */
 	search_bin_t search_acked_bin[SEARCH_ACKED_BINS];	/* array to keep acked bytes for bins */
-	search_bin_t search_sent_bin[SEARCH_SENT_BINS];		/* array to keep sent bytes for bins */
-	uint8_t search_scale_factor;						/* scale factor to fit the value with bin size */
-	uint64_t search_cumulative_acked_bytes;				/* cumulative bytes ACKed */
-	uint64_t search_prior_acked_bytes;					/* cumulative ACKed bytes at previous drain update */
-	uint64_t search_drain_acked_bytes;					/* ACKed bytes accumulated while draining */
-	uint64_t search_targeted_cwnd;						/* drain target in BYTES */
-	uint8_t search_cwnd_reduction_to_target;			/* non-zero while SEARCH drain is active */
+	search_bin_t search_sent_bin[SEARCH_SENT_BINS];	/* array to keep sent bytes for bins */
+	uint8_t search_scale_factor;				/* scale factor to fit the value with bin size */
+	uint32_t search_cumulative_acked_bytes;				/* cumulative byte acked */
 };
  
 #undef  SEARCH_ACKED_BIN
@@ -88,7 +83,7 @@ struct newreno {
 
 #define SEARCH_ACKED_BIN(ccv, i) (((struct newreno*)(ccv)->cc_data)->search_acked_bin[(i)% SEARCH_ACKED_BINS])
 #define SEARCH_SENT_BIN(ccv, i)  (((struct newreno*)(ccv)->cc_data)->search_sent_bin[(i) % SEARCH_SENT_BINS])
-/* SEARCH_end */
+
 
 struct cc_newreno_opts {
 	int		name;
