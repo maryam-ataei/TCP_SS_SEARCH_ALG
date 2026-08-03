@@ -651,11 +651,14 @@ static void search_update_bins(struct sock *sk, u32 now_us, u32 rtt_us)
 	u8 amount_scaled = 0; 
 	u64 largest_val = 0;
 
-	/* 
-	*  The flow is application-limited: reset SEARCH while preserving the
-	* existing bin duration.
-	*/
-	if (tp->app_limited) {
+	/*
+	 * The most recently stored delivery-rate sample is application-limited.
+	 * Discard the current SEARCH measurement history while preserving the
+	 * configured bin duration, and restart the bins from the current state.
+	 */
+	if (tp->rate_interval_us > 0 &&
+	    tp->rate_delivered > 0 &&
+	    tp->rate_app_limited) {
 		bictcp_search_reset(sk, RESET_BIN_DURATION_FALSE); 
 		search_init_bins(sk, now_us, rtt_us);
 		return;
