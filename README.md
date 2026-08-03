@@ -6,7 +6,7 @@
 
 🔧 Kernel Version Compatibility
 
-This main branch contains the latest implementation of SEARCH 3.1, designed for Linux kernel 6.13.
+This main branch contains the implementation of SEARCH, designed for Linux kernel 6.13.
 
 ## 📘 Overview
 
@@ -17,7 +17,7 @@ TCP slow start ramps up the congestion window (cwnd) exponentially until reachin
 
 To improve performance, we developed **SEARCH — Slow start Exit At Right CHokepoint**, which:
 
-- Estimates the congestion point based on delivered vs. expected bytes.
+- Estimates the congestion point based on delivered vs. sent bytes.
 - Smooths estimates to handle latency variation.
 - Normalizes behavior for different link capacities.
 
@@ -34,17 +34,26 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 ### SEARCH 3.1
 
 uses only delivered bytes
+
 sets bin values based on cumulative delivered bytes
+
 reduces bits in bin array with scale factor
+
 resets the algorithm if several missed bins
-resets algorithm if app limited (version 3.1)
+
+resets algorithm if app limited
 
 ### SEARCH 4.0
 
 uses sent and delivered bytes
+
 sets bin values based on cumulative bytes
+
 reduces bits in bin array with scale factor
+
 Upon exit, drain built-up queuing to target cwnd
+
+resets algorithm if app limited
 
 ---
 

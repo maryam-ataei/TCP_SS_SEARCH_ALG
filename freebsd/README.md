@@ -13,6 +13,21 @@ These files implement the SEARCH enhancement on top of NewReno congestion contro
 
 The code is based on **FreeBSD 14.2**.
 
+---
+## Version
+
+### SEARCH 3.2
+
+uses sent and delivered bytes (only difference with version 3.1)
+
+sets bin values based on cumulative bytes
+
+reduces bits in bin array with scale factor
+
+resets the algorithm if several missed bins
+
+---
+
 ## Purpose
 
 TCP SEARCH improves slow start behavior by exiting at the appropriate chokepoint to improve network performance.
