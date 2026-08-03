@@ -26,6 +26,18 @@ reduces bits in bin array with scale factor
 
 resets the algorithm if several missed bins
 
+### SEARCH 4.0
+
+uses sent and delivered bytes
+
+sets bin values based on cumulative bytes
+
+reduces bits in bin array with scale factor
+
+Upon exit, drain built-up queuing to target cwnd
+
+resets algorithm if app limited
+
 ---
 
 ## Purpose
