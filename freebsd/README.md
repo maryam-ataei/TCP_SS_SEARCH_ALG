@@ -36,8 +36,6 @@ reduces bits in bin array with scale factor
 
 Upon exit, drain built-up queuing to target cwnd
 
-resets algorithm if app limited
-
 ---
 
 ## Purpose
