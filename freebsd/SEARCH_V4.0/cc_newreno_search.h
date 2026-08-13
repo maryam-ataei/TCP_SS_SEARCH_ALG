@@ -74,8 +74,7 @@ struct newreno {
 	search_bin_t search_sent_bin[SEARCH_SENT_BINS];		/* array to keep sent bytes for bins */
 	uint8_t search_scale_factor;						/* scale factor to fit the value with bin size */
 	uint64_t search_cumulative_acked_bytes;				/* cumulative bytes ACKed */
-	uint64_t search_prior_acked_bytes;					/* cumulative ACKed bytes at previous drain update */
-	uint64_t search_drain_acked_bytes;					/* ACKed bytes accumulated while draining */
+	uint32_t search_drain_ackedseg;						/* ACKed segments accumulated while draining */
 	uint64_t search_targeted_cwnd;						/* drain target in BYTES */
 	uint8_t search_cwnd_reduction_to_target;			/* non-zero while SEARCH drain is active */
 };
