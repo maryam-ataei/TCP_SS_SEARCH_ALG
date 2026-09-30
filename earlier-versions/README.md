@@ -28,13 +28,7 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 
 ## 🔢 Versions of the SEARCH Algorithm
 
-All versions provided in this branch are implemented for the Linux 5.10 kernel.
-
-### **SEARCH 1.0**
-
-Uses sent + delivered bytes  
-
-Bins based on deltas from previous bins
+Versions 2 and 3 provided in this branch are implemented for the Linux 5.10 kernel, while Version 3.1 is implemented for Linux 6.13.
 
 ### **SEARCH 2.0**
 
