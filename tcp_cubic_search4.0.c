@@ -607,8 +607,12 @@ static void search_init_bins(struct sock *sk, u32 now_us, u32 rtt_us)
 	u64 largest_val = 0;
 
 	if (ca->search.bin_duration_us == 0)
-		ca->search.bin_duration_us = max_t(u32, 1, (rtt_us * search_window_duration_factor) / (SEARCH_BINS * 10));
-	
+		ca->search.bin_duration_us = (rtt_us * search_window_duration_factor) / (SEARCH_BINS * 10);
+
+	/* RTT sample is too small to form a valid SEARCH bin */
+	if (ca->search.bin_duration_us == 0)
+		return;
+
 	ca->search.bin_end_us = now_us + ca->search.bin_duration_us;
 	ca->search.curr_idx = 0;
 
@@ -726,9 +730,11 @@ static bool search_compute_target_cwnd(struct sock *sk)
     u64 delivered_bytes;
     u64 target_pkts;
 
-    if (!ca->search.bin_duration_us || search_window_duration_factor <= 0)
+    if (!ca->search.bin_duration_us || search_window_duration_factor <= 0){
+    	bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
         return false;
-
+    }
+    
     initial_rtt = ca->search.bin_duration_us * SEARCH_BINS * 10 / search_window_duration_factor;
 
     rtt_bins = (initial_rtt + ca->search.bin_duration_us - 1) / ca->search.bin_duration_us;
@@ -787,6 +793,12 @@ static void search_update(struct sock *sk, u32 rtt_us)
 	u32 snd_cnt = 0;
 	u32 new_cwnd = 0;
 
+	if (unlikely(search_window_duration_factor <= 0)) {
+		bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+		return;
+	}
+
+
 	/* If SEARCH is not in Drain phase*/
 	if (ca->search.search_cwnd_reduction_to_target == 0) {
 
@@ -801,6 +813,11 @@ static void search_update(struct sock *sk, u32 rtt_us)
 
 		/* reach or pass the bin boundary, update bins */
 		search_update_bins(sk, now_us, rtt_us);
+
+		if (ca->search.bin_duration_us  == 0) {
+			bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+			return;
+		}
 
 		/* check if there is enough bins after shift for computing previous window */
 		prev_idx = ca->search.curr_idx - (s32)(rtt_us / ca->search.bin_duration_us);
@@ -970,7 +987,7 @@ static struct tcp_congestion_ops cubictcp __read_mostly = {
 	.cwnd_event	= cubictcp_cwnd_event,
 	.pkts_acked     = cubictcp_acked,
 	.owner		= THIS_MODULE,
-	.name		= "cubic_s_dynth",
+	.name		= "cubic_search",
 };
 
 BTF_KFUNCS_START(tcp_cubic_check_kfunc_ids)
