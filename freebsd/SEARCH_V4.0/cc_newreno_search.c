@@ -596,11 +596,59 @@ search_update(struct cc_var *ccv, int64_t now_us, int64_t rtt_us)
 
 				if (prev_sent_bytes >= curr_delv_bytes &&
 				    norm_diff >= SEARCH_THRESH) {
-					/* Compute target first; do not jump cwnd down. */
 					if (search_compute_target_cwnd(ccv)) {
+						uint64_t current_cwnd;
+						uint64_t target_cwnd;
+
+						current_cwnd = CCV(ccv, snd_cwnd);
+						target_cwnd = nreno->search_targeted_cwnd;
+
+						/*
+						 * Compute current in-flight bytes using the ACK
+						 * currently being processed.
+						 */
+						inflight_bytes = 0;
+						if (SEQ_GEQ(CCV(ccv, snd_max), ccv->curack)) {
+							inflight_bytes =
+							    (uint32_t)SEQ_SUB(CCV(ccv, snd_max),
+							    ccv->curack);
+						}
+
+						/*
+						 * Enter Drain only when:
+						 *
+						 *   target_cwnd < current_cwnd
+						 *   AND
+						 *   inflight_bytes > target_cwnd
+						 *
+						 * Otherwise, there is either no cwnd reduction
+						 * to perform or no excess in-flight data above
+						 * the SEARCH target.
+						 */
+						if (target_cwnd >= current_cwnd ||
+						    inflight_bytes <= target_cwnd) {
+
+							/*
+							 * Skip Drain and exit slow start
+							 * at the current cwnd.
+							 */
+							CCV(ccv, snd_ssthresh) =
+							    CCV(ccv, snd_cwnd);
+
+							search_reset(nreno,
+							    RESET_BIN_DURATION_TRUE);
+
+							return (true);
+						}
+
+						/*
+						 * There is excess in-flight data above
+						 * the SEARCH target. Enter Drain.
+						 */
 						nreno->search_cwnd_reduction_to_target = 1;
 						nreno->search_drain_ackedseg = 0;
-						return (true); /* freeze normal SS growth */
+
+						return (true);
 					}
 				}
 			}
@@ -608,13 +656,29 @@ search_update(struct cc_var *ccv, int64_t now_us, int64_t rtt_us)
 		return (false);
 	}
 
-/*
+	/*
 	 * SEARCH drain phase.
+	 */
+
+	if ((uint64_t)CCV(ccv, snd_cwnd) <=
+	    nreno->search_targeted_cwnd) {
+
+		CCV(ccv, snd_ssthresh) =
+		    min(CCV(ccv, snd_ssthresh),
+			(uint32_t)nreno->search_targeted_cwnd);
+
+		search_reset(nreno, RESET_BIN_DURATION_TRUE);
+
+		return (true);
+	}
+
+	/*
 	 *
 	 * CWND and in-flight data are byte-based in FreeBSD, but the drain pacing
 	 * rule is segment-based: for every SEARCH_DRAIN_ACKEDSEG_THRESH ACKed
 	 * segments, allow one MSS back into cwnd.
 	 */
+
 	mss = tcp_fixed_maxseg(ccv->ccvc.tcp);
 	segs_acked = 0;
 	adds = 0;
@@ -656,12 +720,19 @@ search_update(struct cc_var *ccv, int64_t now_us, int64_t rtt_us)
 	if (new_cwnd < nreno->search_targeted_cwnd)
 		new_cwnd = nreno->search_targeted_cwnd;
 
+	/*
+	 * Drain must never increase cwnd.
+	 */
+	new_cwnd = min(new_cwnd, (uint64_t)CCV(ccv, snd_cwnd));
+
 	CCV(ccv, snd_cwnd) = (uint32_t)new_cwnd;
 
 	/* Drain completed: exit slow start at the SEARCH target. */
 	if (new_cwnd == nreno->search_targeted_cwnd) {
 		CCV(ccv, snd_ssthresh) =
-		    (u_int)nreno->search_targeted_cwnd;
+		    min(CCV(ccv, snd_ssthresh),
+			(uint32_t)nreno->search_targeted_cwnd);
+
 		search_reset(nreno, RESET_BIN_DURATION_TRUE);
 	}
 
@@ -696,10 +767,8 @@ newreno_ack_received(struct cc_var *ccv, uint16_t type)
 	 * This mirrors Linux cubictcp_acked()
 	 */
 	if (V_use_search && type == CC_ACK &&
-	    !IN_RECOVERY(CCV(ccv, t_flags)) &&
 	    rtt_us > 0 &&
-	    (nreno->search_cwnd_reduction_to_target != 0 ||
-	     CCV(ccv, snd_cwnd) < CCV(ccv, snd_ssthresh)))
+	     CCV(ccv, snd_cwnd) < CCV(ccv, snd_ssthresh))
 	    search_hold_cwnd = search_update(ccv, now_us, rtt_us);
 	
 	if (type == CC_ACK && !IN_RECOVERY(CCV(ccv, t_flags)) &&
@@ -893,9 +962,6 @@ newreno_cong_signal(struct cc_var *ccv, uint32_t type)
 
 	switch (type) {
 	case CC_NDUPACK:
-		if (V_use_search)
-		 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
-
 		if (nreno->newreno_flags & CC_NEWRENO_HYSTART_ENABLED) {
 			/* Make sure the flags are all off we had a loss */
 			nreno->newreno_flags &= ~CC_NEWRENO_HYSTART_ENABLED;
@@ -915,9 +981,6 @@ newreno_cong_signal(struct cc_var *ccv, uint32_t type)
 		}
 		break;
 	case CC_ECN:
-		if (V_use_search)
-		 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
-
 		if (nreno->newreno_flags & CC_NEWRENO_HYSTART_ENABLED) {
 			/* Make sure the flags are all off we had a loss */
 			nreno->newreno_flags &= ~CC_NEWRENO_HYSTART_ENABLED;

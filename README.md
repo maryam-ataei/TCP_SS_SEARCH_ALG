@@ -31,17 +31,6 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 ---
 ## Version
 
-### SEARCH 3.1
-
-uses only delivered bytes
-
-sets bin values based on cumulative delivered bytes
-
-reduces bits in bin array with scale factor
-
-resets the algorithm if several missed bins
-
-resets algorithm if app limited
 
 ### SEARCH 4.0
 
@@ -52,8 +41,6 @@ sets bin values based on cumulative bytes
 reduces bits in bin array with scale factor
 
 Upon exit, drain built-up queuing to target cwnd
-
-resets algorithm if app limited
 
 ---
 
@@ -155,37 +142,7 @@ sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
 ---
 ## SEARCH Parameters
 
-* Set cwnd at Exit Time (SEARCH 3.1 only)
 
-	In SEARCH version 3.1, you can control whether the congestion window is rolled back at slow start exit.
-	
-	Enable
-	
-	```bash
-	sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
-	```
-	
-	Disable
-	
-	```bash
-	sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
-	```
-
- * search_alpha (SEARCH 3.1 only)
-
-	The search_alpha parameter controls the sensitivity of SEARCH to missed bins, which determines when the algorithm resets.
-
-	```bash
-	sudo sh -c "echo '<value>' > /sys/module/tcp_cubic_search/parameters/search_alpha"
- 	```
-
- 	Replace <value> with your desired integer.
-
-	Default = 2 → corresponds to ~2 RTTs tolerance for missed bins
-
-	Lower value → more aggressive reset
-
-	Higher value → more tolerant (less frequent resets)
 
 * Drain Phase (SEARCH 4.0)
 

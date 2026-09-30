@@ -31,22 +31,35 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 All versions provided in this branch are implemented for the Linux 5.10 kernel.
 
 ### **SEARCH 1.0**
-- Uses sent + delivered bytes  
-- Bins based on deltas from previous bins
+
+Uses sent + delivered bytes  
+
+Bins based on deltas from previous bins
 
 ### **SEARCH 2.0**
-- Uses only delivered bytes  
-- Bins based on deltas
+
+Uses only delivered bytes  
+
+Bins based on deltas
 
 ### **SEARCH 3.0**
-- Uses only delivered bytes  
-- Bins based on *cumulative* delivered bytes
 
-### **SEARCH 3.1**
-- Applies bin array scale-factor reduction  
-- Resets algorithm on:
-  - several missed bins  
-  - app-limited state  
+Uses only delivered bytes  
+
+Bins based on *cumulative* delivered bytes
+
+
+### SEARCH 3.1
+
+uses only delivered bytes
+
+sets bin values based on cumulative delivered bytes
+
+reduces bits in bin array with scale factor
+
+resets the algorithm if several missed bins
+
+resets algorithm if app limited
 - *Does not require memory changes from the kernel*
 
 ---
@@ -136,60 +149,23 @@ Managing HyStart functionality(v3.0 and older):
   
   		sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/hystart"
       
+
 Managing SEARCH (v3.0 and older)
 
-Disable SEARCH
+* Disable SEARCH
 
 ```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/search"
 ```
 
-Enable SEARCH
+* Enable SEARCH
 
 ```bash
 sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/search"
 ```
 
----
 
-Managing SEARCH (v3.1)
-
-Enable SEARCH
-
-```bash
-sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
-```
-
-Enable HyStart
-
-```bash
-sudo sh -c "echo '2' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
-```
-
-Disable both
-
-```bash
-sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
-```
----
-
-Set cwnd at Exit Time
-
-Enable
-
-```bash
-sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
-```
-
-Disable
-
-```bash
-sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
-```
-
----
-
-Interpolation (v3.0 and older)
+* Interpolation
 
 Enable
 
@@ -202,4 +178,62 @@ Disable
 ```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/do_intpld"
 ```
+
+---
+
+Managing SEARCH (v3.1)
+
+* Managing slow start mode
+
+			Enable SEARCH
+
+			```bash
+			sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
+			```
+
+			Enable HyStart
+
+			```bash
+			sudo sh -c "echo '2' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
+			```
+
+			Disable both
+
+			```bash
+			sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
+			```
+
+* Set cwnd at Exit Time 
+
+	In SEARCH version 3.1, you can control whether the congestion window is rolled back at slow start exit.
+	
+	Enable
+	
+	```bash
+	sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
+	```
+	
+	Disable
+	
+	```bash
+	sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/cwnd_rollback"
+	```
+
+ * search_alpha
+
+	The search_alpha parameter controls the sensitivity of SEARCH to missed bins, which determines when the algorithm resets.
+
+	```bash
+	sudo sh -c "echo '<value>' > /sys/module/tcp_cubic_search/parameters/search_alpha"
+ 	```
+
+ 	Replace <value> with your desired integer.
+
+	Default = 2 → corresponds to ~2 RTTs tolerance for missed bins
+
+	Lower value → more aggressive reset
+
+	Higher value → more tolerant (less frequent resets)
+
+---
 

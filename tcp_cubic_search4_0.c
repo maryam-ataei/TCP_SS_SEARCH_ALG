@@ -651,19 +651,6 @@ static void search_update_bins(struct sock *sk, u32 now_us, u32 rtt_us)
 	u8 amount_scaled = 0; 
 	u64 largest_val = 0;
 
-	/*
-	 * The most recently stored delivery-rate sample is application-limited.
-	 * Discard the current SEARCH measurement history while preserving the
-	 * configured bin duration, and restart the bins from the current state.
-	 */
-	if (tp->rate_interval_us > 0 &&
-	    tp->rate_delivered > 0 &&
-	    tp->rate_app_limited) {
-		bictcp_search_reset(sk, RESET_BIN_DURATION_FALSE); 
-		search_init_bins(sk, now_us, rtt_us);
-		return;
-	}
-
 	/* If passed_bins greater than 1, it means we have some missed bins */
 	passed_bins = ((now_us - ca->search.bin_end_us) / ca->search.bin_duration_us) + 1;
 
@@ -832,16 +819,63 @@ static void search_update(struct sock *sk, u32 rtt_us)
 
 			if (prev_sent_bytes > 0) {
 				s64 diff = (s64)prev_sent_bytes - (s64)curr_delv_bytes;
+
 				norm_diff = diff * 100 / (s64)prev_sent_bytes;
-				/* check for exit condition */
-				if (prev_sent_bytes >= curr_delv_bytes && norm_diff >= search_thresh){
-					/* Compute target cwnd but do NOT apply it yet */
+
+				/* Check SEARCH threshold crossing */
+				if (prev_sent_bytes >= curr_delv_bytes &&
+				    norm_diff >= search_thresh) {
+
+					/*
+					 * Compute SEARCH's estimated BDP/cwnd target.
+					 * Do not enter Drain until the target and current
+					 * sender state have been checked.
+					 */
 					if (search_compute_target_cwnd(sk)) {
-						/* Enable drain phase */
-				        ca->search.search_cwnd_reduction_to_target = 1;
-				        ca->search.prior_delivered = tp->delivered;
-				        ca->search.search_drain_ackedseg = 0;
-				    }
+
+						u32 current_cwnd = tcp_snd_cwnd(tp);
+						u32 inflight = tcp_packets_in_flight(tp);
+						u32 target_cwnd =
+							ca->search.search_targeted_cwnd;
+
+						/*
+						 * Enter Drain only when:
+						 *
+						 *   target_cwnd < current_cwnd
+						 *   AND
+						 *   inflight > target_cwnd
+						 *
+						 * Otherwise, there is either no cwnd reduction to perform
+						 * or no excess in-flight data above the SEARCH target.
+						 * In either case, skip Drain and exit slow start at the
+						 * current cwnd.
+						 */
+						if (target_cwnd >= current_cwnd || inflight <= target_cwnd) {
+
+							/*
+							 * Exit slow start at the current cwnd.
+							 */
+							tp->snd_ssthresh = current_cwnd;
+
+							bictcp_search_reset(
+								sk,
+								RESET_BIN_DURATION_TRUE);
+
+							return;
+						}
+
+						/*
+						 * inflight > target_cwnd:
+						 *
+						 * There is excess flight above SEARCH's
+						 * estimated target, so enter Drain.
+						 *
+						 * This is allowed even during Recovery.
+						 */
+						ca->search.search_cwnd_reduction_to_target = 1;
+						ca->search.prior_delivered = tp->delivered;
+						ca->search.search_drain_ackedseg = 0;
+					}
 				}
 			}
 		}
@@ -849,15 +883,31 @@ static void search_update(struct sock *sk, u32 rtt_us)
 
 	/* SEARCH drain phase */
 	else {
+		/*
+		 * cwnd may have been reduced by Recovery while SEARCH Drain
+		 * was active. If cwnd is already at or below the SEARCH
+		 * target, there is nothing left for SEARCH to drain.
+		 *
+		 * Do not increase cwnd back to the target.
+		 */
+		if (tcp_snd_cwnd(tp) <= ca->search.search_targeted_cwnd) {
+
+			tp->snd_ssthresh = min(tp->snd_ssthresh, ca->search.search_targeted_cwnd);
+
+			bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+
+			return;
+		}
+
 		segs_acked = tp->delivered - ca->search.prior_delivered;
 		ca->search.prior_delivered = tp->delivered;
 
 		ca->search.search_drain_ackedseg += segs_acked;
 
-		/* 
-		 * Pace CWND increase during SEARCH drain.
-		 * CWND grows only after a threshold number of ACKed segments
-		 * to ensure controlled draining toward the target CWND.
+		/*
+		 * Allow limited transmission during SEARCH Drain.
+		 * ACKed segments provide a controlled sending allowance while
+		 * cwnd is reduced toward the SEARCH target.
 		 */
 		if (ca->search.search_drain_ackedseg >= SEARCH_DRAIN_ACKEDSEG_THRESH) {
 		    snd_cnt = ca->search.search_drain_ackedseg / SEARCH_DRAIN_ACKEDSEG_THRESH;
@@ -866,10 +916,13 @@ static void search_update(struct sock *sk, u32 rtt_us)
 
 		new_cwnd = max(tcp_packets_in_flight(tp) + snd_cnt, ca->search.search_targeted_cwnd);
 
+		/* Drain must never increase cwnd */
+		new_cwnd = min(new_cwnd, tcp_snd_cwnd(tp));
+
 		tcp_snd_cwnd_set(tp, new_cwnd);   // like tcp_cwnd_reduction() in tcp_input.c
 
 		if (new_cwnd == ca->search.search_targeted_cwnd) {
-		    tp->snd_ssthresh = ca->search.search_targeted_cwnd;
+		    tp->snd_ssthresh = min(tp->snd_ssthresh, ca->search.search_targeted_cwnd);
 		    bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
 		}
 	}
