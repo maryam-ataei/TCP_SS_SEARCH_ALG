@@ -164,16 +164,15 @@ sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/search"
 sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/search"
 ```
 
+Interpolation
 
-* Interpolation
-
-Enable
+* Enable
 
 ```bash
 sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/do_intpld"
 ```
 
-Disable
+* Disable
 
 ```bash
 sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/do_intpld"
