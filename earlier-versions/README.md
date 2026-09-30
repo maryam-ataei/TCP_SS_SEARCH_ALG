@@ -230,7 +230,7 @@ sudo sh -c "echo '<value>' > /sys/module/tcp_cubic_search/parameters/search_alph
 
 Replace <value> with your desired integer.
 
-Default = MAX_US_INT → keeps this functionality disabled
+Default = 2 → corresponds to ~2 RTTs tolerance for missed bins
 
 Lower value → more aggressive reset
 
