@@ -4,7 +4,7 @@
 
 ---
 
-## 📘 Overview
+## Overview
 
 TCP slow start ramps up the congestion window (cwnd) exponentially until reaching the congestion point. However:
 
@@ -17,7 +17,7 @@ To improve performance, we developed **SEARCH — Slow start Exit At Right CHoke
 - Smooths estimates to handle latency variation.
 - Normalizes behavior for different link capacities.
 
-### ✔ Proven Across Diverse Networks
+### Proven Across Diverse Networks
 Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi** show:
 
 - **Earlier, correct exit** from slow start
@@ -26,7 +26,7 @@ Extensive evaluations over **4G LTE**, **LEO**, **GEO satellite**, and **Wi-Fi**
 
 ---
 
-## 🔢 Versions of the SEARCH Algorithm
+## Versions of the SEARCH Algorithm
 
 Versions 2 and 3 provided in this branch are implemented for the Linux 5.10 kernel, while Version 3.1 is implemented for Linux 6.13.
 
@@ -187,21 +187,21 @@ Managing SEARCH (v3.1)
 
 			Enable SEARCH
 
-			```bash
+```bash
 			sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
-			```
+```
 
 			Enable HyStart
 
-			```bash
+```bash
 			sudo sh -c "echo '2' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
-			```
+```
 
 			Disable both
 
-			```bash
+```bash
 			sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/slow_start_mode"
-			```
+```
 
 * Set cwnd at Exit Time 
 
