@@ -132,7 +132,7 @@ Follow these steps to integrate SEARCH TCP into your kernel:
 
 ```bash
 	sudo sysctl -w net.ipv4.tcp_congestion_control=cubic_search
-   ``` 
+``` 
 	
 ---
 
@@ -140,15 +140,15 @@ Managing HyStart functionality(v3.0 and older):
 
 * Disable hystart: 
  		
- 		```bash
+```bash
  		sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/hystart"
-    ```
+```
 
 * Enable hystart: 
   		
-		```bash	
+```bash	
   	sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/hystart"
-  	```
+```
 
 Managing SEARCH (v3.0 and older)
 
