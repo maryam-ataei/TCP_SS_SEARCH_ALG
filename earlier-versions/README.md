@@ -56,14 +56,14 @@ resets the algorithm if several missed bins
 
 ---
 
-## ⚙ Search Options (General)
+## Search Options (General)
 
 - Disable interpolation when previous window falls between bins  
 - On exit, optionally lower cwnd to value from 2 RTTs prior  
 
 ---
 
-## 🧩 Dependency — Kernel Modification
+## Dependency — Kernel Modification
 
 JUST for SEARCH version 3.0 and older:
 
@@ -118,29 +118,35 @@ Follow these steps to integrate SEARCH TCP into your kernel:
 
 ## Helpful Commands
 
-Check available congestion control algs:
-
+* Check available congestion control algs:
+	```bash
 	sysctl net.ipv4.tcp_available_congestion_control
-
-Check current congestion control alg:
-
+  ```
+* Check current congestion control alg:
+	
+	```bash
 	sysctl net.ipv4.tcp_congestion_control
+	```
 
-Set current congestion control alg:
+* Set current congestion control alg:
 
+```bash
 	sudo sysctl -w net.ipv4.tcp_congestion_control=cubic_search
-    
+   ``` 
 	
 Managing HyStart functionality(v3.0 and older):
 
-	Disable hystart: 
- 
+* Disable hystart: 
+ 		
+ 		```bash
  		sudo sh -c "echo '0' > /sys/module/tcp_cubic_search/parameters/hystart"
-   
- 	Enable hystart: 
-  
-  		sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/hystart"
-      
+    ```
+
+* Enable hystart: 
+  		
+		```bash	
+  	sudo sh -c "echo '1' > /sys/module/tcp_cubic_search/parameters/hystart"
+  	```
 
 Managing SEARCH (v3.0 and older)
 
