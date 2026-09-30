@@ -52,9 +52,7 @@ sets bin values based on cumulative delivered bytes
 reduces bits in bin array with scale factor
 
 resets the algorithm if several missed bins
-
-resets algorithm if app limited
-- *Does not require memory changes from the kernel*
+- *Does not require memory changes from the kernel in version 3.1*
 
 ---
 
