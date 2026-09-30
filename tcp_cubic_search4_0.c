@@ -113,7 +113,7 @@ enum unset_bin_duration {
 /* Set the default mode */
 static int slow_start_mode __read_mostly = SS_SEARCH;
 static int search_window_duration_factor __read_mostly = 35;
-static int search_thresh __read_mostly = 35;
+static int search_thresh __read_mostly = 26;
 static int debug_port __read_mostly = 5201;
 
 // Module parameters used by SEARCH

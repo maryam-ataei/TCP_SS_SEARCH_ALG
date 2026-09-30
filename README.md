@@ -40,6 +40,8 @@ sets bin values based on cumulative bytes
 
 reduces bits in bin array with scale factor
 
+changes the exit threshold from 35 to 26, corresponding to reducing the detection point from about 2 RTTs after capacity to about 1.5 RTTs after capacity
+
 Upon exit, drain built-up queuing to target cwnd
 
 ---
