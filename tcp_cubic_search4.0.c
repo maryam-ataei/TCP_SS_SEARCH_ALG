@@ -105,10 +105,6 @@ enum {
     SS_HYSTART = 2 /* Enable the HyStart slow start algorithm */
 };
 
-enum unset_bin_duration {
-    RESET_BIN_DURATION_TRUE,  // Reset bin duration
-    RESET_BIN_DURATION_FALSE    // Do not reset bin duration
-}; //
 
 /* Set the default mode */
 static int slow_start_mode __read_mostly = SS_SEARCH;
@@ -171,7 +167,7 @@ struct bictcp {
 	};
 };
 
-static inline void bictcp_search_reset(struct sock *sk, enum unset_bin_duration flag)
+static inline void bictcp_search_reset(struct sock *sk)
 {
 	struct bictcp *ca = inet_csk_ca(sk);
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -185,8 +181,7 @@ static inline void bictcp_search_reset(struct sock *sk, enum unset_bin_duration 
 	ca->search.search_cwnd_reduction_to_target = 0;
 	ca->search.search_drain_ackedseg = 0;
 	ca->search.prior_delivered = tp->delivered;
-	if (flag == RESET_BIN_DURATION_TRUE) 
-		ca->search.bin_duration_us = 0; 
+	ca->search.bin_duration_us = 0; 
 }
 
 static inline void bictcp_reset(struct bictcp *ca)
@@ -219,7 +214,7 @@ __bpf_kfunc static void cubictcp_init(struct sock *sk)
 	bictcp_reset(ca);
 
 	if (slow_start_mode == SS_SEARCH)
-		bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+		bictcp_search_reset(sk);
 
 	if (slow_start_mode == SS_HYSTART)
 		bictcp_hystart_reset(sk);
@@ -251,7 +246,7 @@ __bpf_kfunc static void cubictcp_cwnd_event(struct sock *sk, enum tcp_ca_event e
 
 	if (event == CA_EVENT_CWND_RESTART) {
 		if (slow_start_mode == SS_SEARCH)
-			bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+			bictcp_search_reset(sk);
 		return;
 	}
 	return;
@@ -462,7 +457,7 @@ __bpf_kfunc static void cubictcp_state(struct sock *sk, u8 new_state)
 		bictcp_reset(inet_csk_ca(sk));
 
 		if (slow_start_mode == SS_SEARCH)
-			bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+			bictcp_search_reset(sk);
 
 		if (slow_start_mode == SS_HYSTART)
 			bictcp_hystart_reset(sk);
@@ -731,7 +726,7 @@ static bool search_compute_target_cwnd(struct sock *sk)
     u64 target_pkts;
 
     if (!ca->search.bin_duration_us || search_window_duration_factor <= 0){
-    	bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+    	bictcp_search_reset(sk);
         return false;
     }
     
@@ -794,7 +789,7 @@ static void search_update(struct sock *sk, u32 rtt_us)
 	u32 new_cwnd = 0;
 
 	if (unlikely(search_window_duration_factor <= 0)) {
-		bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+		bictcp_search_reset(sk);
 		return;
 	}
 
@@ -815,7 +810,7 @@ static void search_update(struct sock *sk, u32 rtt_us)
 		search_update_bins(sk, now_us, rtt_us);
 
 		if (ca->search.bin_duration_us  == 0) {
-			bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+			bictcp_search_reset(sk);
 			return;
 		}
 
@@ -862,9 +857,16 @@ static void search_update(struct sock *sk, u32 rtt_us)
 						 *   AND
 						 *   inflight > target_cwnd
 						 *
-						 * Otherwise, there is either no cwnd reduction to perform
-						 * or no excess in-flight data above the SEARCH target.
-						 * In either case, skip Drain and exit slow start at the
+						 * target_cwnd may be >= current_cwnd when the capacity estimate
+						 * from the previous RTT is already at or above the current cwnd,
+						 * for example because cwnd changed during Recovery.
+						 *
+						 * inflight may be <= target_cwnd because ACK processing has already
+						 * reduced the amount of outstanding data, or because Recovery or
+						 * transient sender behavior has reduced the current flight size.
+						 *
+						 * In either case, there is no excess data above the SEARCH target
+						 * that needs to be drained. Skip Drain and exit slow start at the
 						 * current cwnd.
 						 */
 						if (target_cwnd >= current_cwnd || inflight <= target_cwnd) {
@@ -874,9 +876,7 @@ static void search_update(struct sock *sk, u32 rtt_us)
 							 */
 							tp->snd_ssthresh = current_cwnd;
 
-							bictcp_search_reset(
-								sk,
-								RESET_BIN_DURATION_TRUE);
+							bictcp_search_reset(sk);
 
 							return;
 						}
@@ -905,13 +905,12 @@ static void search_update(struct sock *sk, u32 rtt_us)
 		 * was active. If cwnd is already at or below the SEARCH
 		 * target, there is nothing left for SEARCH to drain.
 		 *
-		 * Do not increase cwnd back to the target.
 		 */
 		if (tcp_snd_cwnd(tp) <= ca->search.search_targeted_cwnd) {
 
-			tp->snd_ssthresh = min(tp->snd_ssthresh, ca->search.search_targeted_cwnd);
+			tp->snd_ssthresh = ca->search.search_targeted_cwnd;
 
-			bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+			bictcp_search_reset(sk);
 
 			return;
 		}
@@ -933,14 +932,11 @@ static void search_update(struct sock *sk, u32 rtt_us)
 
 		new_cwnd = max(tcp_packets_in_flight(tp) + snd_cnt, ca->search.search_targeted_cwnd);
 
-		/* Drain must never increase cwnd */
-		new_cwnd = min(new_cwnd, tcp_snd_cwnd(tp));
-
 		tcp_snd_cwnd_set(tp, new_cwnd);   // like tcp_cwnd_reduction() in tcp_input.c
 
 		if (new_cwnd == ca->search.search_targeted_cwnd) {
-		    tp->snd_ssthresh = min(tp->snd_ssthresh, ca->search.search_targeted_cwnd);
-		    bictcp_search_reset(sk, RESET_BIN_DURATION_TRUE);
+		    tp->snd_ssthresh = ca->search.search_targeted_cwnd;
+		    bictcp_search_reset(sk);
 		}
 	}
 }

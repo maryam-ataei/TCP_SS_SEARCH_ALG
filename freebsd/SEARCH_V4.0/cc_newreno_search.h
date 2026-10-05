@@ -45,11 +45,6 @@ typedef uint16_t search_bin_t;
 #define SEARCH_ALPHA 2
 #define SEARCH_DRAIN_ACKEDSEG_THRESH 3
 #define SEARCH_VERSION 40
-
-enum unset_bin_duration {
-	RESET_BIN_DURATION_TRUE,		// Reset bin duration
-	RESET_BIN_DURATION_FALSE		// Do not reset bin duration
-};
  
 
 struct newreno {

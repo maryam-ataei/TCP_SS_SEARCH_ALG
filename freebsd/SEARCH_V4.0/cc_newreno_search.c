@@ -133,7 +133,7 @@ struct cc_algo newreno_search_cc_algo = {
  * and optionally clears the bin duration (when requested).
  * Used on connection init or after major time gaps between bins.
  */
-static void search_reset(struct newreno* nreno, enum unset_bin_duration flag) {
+static void search_reset(struct newreno* nreno) {
 	memset(nreno->search_acked_bin, 0, sizeof(nreno->search_acked_bin));
 	memset(nreno->search_sent_bin, 0, sizeof(nreno->search_sent_bin));
 	nreno->search_curr_idx = -1;
@@ -142,9 +142,7 @@ static void search_reset(struct newreno* nreno, enum unset_bin_duration flag) {
 	nreno->search_targeted_cwnd = 0;
 	nreno->search_cwnd_reduction_to_target = 0;
 	nreno->search_drain_ackedseg = 0;
-
-	if (flag == RESET_BIN_DURATION_TRUE)
-		nreno->search_bin_duration_us = 0;
+	nreno->search_bin_duration_us = 0;
 }
 
 static void
@@ -241,7 +239,7 @@ newreno_cb_init(struct cc_var *ccv, void *ptr)
 	nreno->last_rtt_sample = 0;
 	nreno->search_cumulative_acked_bytes = 0;
 	if (V_use_search)
-		search_reset(nreno, RESET_BIN_DURATION_TRUE);
+		search_reset(nreno);
 	return (0);
 }
 
@@ -396,9 +394,9 @@ search_update_bins(struct cc_var* ccv, uint64_t now_us, uint64_t rtt_us) {
 	if (passed_bins > SEARCH_ALPHA * (initial_rtt / nreno->search_bin_duration_us)) {
 
 		if (passed_bins > SEARCH_WIN_BINS) 
-			search_reset(nreno, RESET_BIN_DURATION_TRUE);
+			search_reset(nreno);
 		else 
-			search_reset(nreno, RESET_BIN_DURATION_FALSE);
+			search_reset(nreno);
 
 		search_init_bins(ccv, now_us, rtt_us);
 		return;
@@ -635,8 +633,7 @@ search_update(struct cc_var *ccv, int64_t now_us, int64_t rtt_us)
 							CCV(ccv, snd_ssthresh) =
 							    CCV(ccv, snd_cwnd);
 
-							search_reset(nreno,
-							    RESET_BIN_DURATION_TRUE);
+							search_reset(nreno);
 
 							return (true);
 						}
@@ -667,7 +664,7 @@ search_update(struct cc_var *ccv, int64_t now_us, int64_t rtt_us)
 		    min(CCV(ccv, snd_ssthresh),
 			(uint32_t)nreno->search_targeted_cwnd);
 
-		search_reset(nreno, RESET_BIN_DURATION_TRUE);
+		search_reset(nreno);
 
 		return (true);
 	}
@@ -733,7 +730,7 @@ search_update(struct cc_var *ccv, int64_t now_us, int64_t rtt_us)
 		    min(CCV(ccv, snd_ssthresh),
 			(uint32_t)nreno->search_targeted_cwnd);
 
-		search_reset(nreno, RESET_BIN_DURATION_TRUE);
+		search_reset(nreno);
 	}
 
 	/* Never let ordinary slow-start growth run on the same ACK as drain. */
@@ -922,7 +919,7 @@ newreno_after_idle(struct cc_var *ccv)
 		nreno->newreno_flags |= CC_NEWRENO_HYSTART_ENABLED;
 		newreno_log_hystart_event(ccv, nreno, 12, CCV(ccv, snd_ssthresh));
 	}
-	search_reset(nreno, RESET_BIN_DURATION_TRUE);
+	search_reset(nreno);
 }
 
 /*
@@ -995,7 +992,7 @@ newreno_cong_signal(struct cc_var *ccv, uint32_t type)
 		break;
 	case CC_RTO:
 		if (V_use_search)
-		 	search_reset(nreno, RESET_BIN_DURATION_TRUE);
+		 	search_reset(nreno);
 		CCV(ccv, snd_ssthresh) = max(min(CCV(ccv, snd_wnd),
 						 CCV(ccv, snd_cwnd)) / 2 / mss,
 					     2) * mss;
