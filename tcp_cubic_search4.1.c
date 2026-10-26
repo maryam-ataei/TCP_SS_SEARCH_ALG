@@ -612,7 +612,8 @@ static void search_init_bins(struct sock *sk, u32 now_us, u32 rtt_us, u8 app_lim
 	u64 largest_val = 0;
 
 	if (ca->search.bin_duration_us == 0)
-		ca->search.bin_duration_us = (rtt_us * search_window_duration_factor) / (SEARCH_BINS * 10);
+		ca->search.bin_duration_us = div_u64((u64)rtt_us * search_window_duration_factor,
+	                SEARCH_BINS * 10);
 
 	/* RTT sample is too small to form a valid SEARCH bin */
 	if (ca->search.bin_duration_us == 0)
@@ -859,8 +860,8 @@ static void search_update(struct sock *sk, u32 rtt_us)
 	/* If SEARCH is not in Drain phase*/
 	if (ca->search.search_cwnd_reduction_to_target == 0) {
 
-		/* Track whether any valid delivery-rate sample in the current bin is app-limited. */
-		if (tp->rate_interval_us > 0 && tp->rate_delivered > 0 && tp->rate_app_limited)
+		/* Track whether any delivery-rate sample in the current bin is app-limited. */
+		if ( tp->rate_app_limited)
 			ca->search.current_app_limited = 1;
 
 		/* by receiving the first ack packet, initialize bin duration and bin end time */
@@ -901,7 +902,8 @@ static void search_update(struct sock *sk, u32 rtt_us)
 				norm_diff = diff * 100 / (s64)prev_sent_bytes;
 				/* Check the fixed SEARCH exit condition first. */
 				if (prev_sent_bytes >= curr_delv_bytes &&
-				    norm_diff >= search_thresh) {
+				    norm_diff >= search_thresh && 
+				    inet_csk(sk)->icsk_ca_state == TCP_CA_Open) {
 
 					app_limited_bin_count =
 						search_count_app_limited_bins(sk);
