@@ -1066,7 +1066,7 @@ static struct tcp_congestion_ops cubictcp __read_mostly = {
 	.cwnd_event	= cubictcp_cwnd_event,
 	.pkts_acked     = cubictcp_acked,
 	.owner		= THIS_MODULE,
-	.name		= "cubic_s_D_A",  // cubic_search with drain and app-limited
+	.name		= "cubic_search",  // cubic_search with drain and app-limited
 };
 
 BTF_KFUNCS_START(tcp_cubic_check_kfunc_ids)

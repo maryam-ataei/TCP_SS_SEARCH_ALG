@@ -53,6 +53,18 @@ reduces bits in bin array with scale factor
 resets the algorithm if several missed bins
 - *Does not require memory changes from the kernel in version 3.1*
 
+### SEARCH 4.0
+
+uses sent and delivered bytes
+
+sets bin values based on cumulative bytes
+
+reduces bits in bin array with scale factor
+
+changes the exit threshold from 35 to 26, corresponding to reducing the detection point from about 2 RTTs after capacity to about 1.5 RTTs after capacity
+
+Upon exit, drain built-up queuing to target cwnd
+
 ---
 
 ## Search Options (General)
@@ -64,8 +76,6 @@ resets the algorithm if several missed bins
 
 ## Dependency — Kernel Modification
 
-JUST for SEARCH version 3.0 and older:
-
 The kernel needs to be recompiled with a larger `ICSK_CA_PRIV_SIZE`.
 Edit:
 
@@ -74,12 +84,10 @@ Edit:
 and for these lines:
 
 ```c
-u64                       icsk_ca_priv[104 / sizeof(u64)];
-
-#define ICSK_CA_PRIV_SIZE      (13 * sizeof(u64))
+	u64 icsk_ca_priv[104 / sizeof(u64)];
 ```
 
-change the number `104` to `200` and `13` to `25`. Then rebuild and reboot the kernel normally.
+change the number `104` to `200`. Then rebuild and reboot the kernel normally.
 
 ## Build
 
@@ -235,5 +243,27 @@ Default = 2 → corresponds to ~2 RTTs tolerance for missed bins
 Lower value → more aggressive reset
 
 Higher value → more tolerant (less frequent resets)
+
+---
+## SEARCH Parameters
+
+
+
+* Drain Phase (SEARCH 4.0)
+
+	In SEARCH version 4.0, cwnd rollback is replaced with a drain phase, which gradually reduces the built-up queue after finding capacity.
+	
+	The drain behavior is controlled directly in the code:
+
+	```bash
+	#define SEARCH_DRAIN_ACKEDSEG_THRESH 3  /* ACKed-segment threshold to permit CWND increase during drain */
+	```
+ 
+	You can adjust this value to control how aggressively the queue is drained:
+	
+	Lower value → faster cwnd growth during drain (less aggressive draining)
+
+	Higher value → slower cwnd growth (more aggressive draining)
+
 
 ---
