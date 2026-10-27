@@ -426,6 +426,17 @@ __bpf_kfunc static void cubictcp_cong_avoid(struct sock *sk, u32 ack, u32 acked)
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct bictcp *ca = inet_csk_ca(sk);
 
+	/*
+	 * A real Recovery/CWR ended while SEARCH was draining: Linux has set
+	 * cwnd = ssthresh, so slow start is over. Clear the drain state and
+	 * hand over to CUBIC. (Not called during Recovery/CWR; after an undo
+	 * cwnd < ssthresh again and the drain continues.)
+	 */
+	if (slow_start_mode == SS_SEARCH &&
+	    ca->search.search_cwnd_reduction_to_target &&
+	    !tcp_in_slow_start(tp))
+		bictcp_search_reset(sk);
+
 	if (!tcp_is_cwnd_limited(sk))
 		return;
 
@@ -851,6 +862,7 @@ static void search_update(struct sock *sk, u32 rtt_us)
 	u32 new_cwnd = 0;
 	u32 app_limited_bin_count = 0;
 	int app_thresh = 0;
+	u32 cwnd = 0;
 
 	if (unlikely(search_window_duration_factor <= 0)) {
 		bictcp_search_reset(sk);
@@ -903,7 +915,7 @@ static void search_update(struct sock *sk, u32 rtt_us)
 				/* Check the fixed SEARCH exit condition first. */
 				if (prev_sent_bytes >= curr_delv_bytes &&
 				    norm_diff >= search_thresh && 
-				    inet_csk(sk)->icsk_ca_state == TCP_CA_Open) {
+				    inet_csk(sk)->icsk_ca_state != TCP_CA_Recovery) {
 
 					app_limited_bin_count =
 						search_count_app_limited_bins(sk);
@@ -968,8 +980,6 @@ static void search_update(struct sock *sk, u32 rtt_us)
 							 *
 							 * There is excess flight above SEARCH's
 							 * estimated target, so enter Drain.
-							 *
-							 * This is allowed even during Recovery.
 							 */
 							ca->search.search_cwnd_reduction_to_target = 1;
 							ca->search.prior_delivered = tp->delivered;
@@ -1014,11 +1024,16 @@ static void search_update(struct sock *sk, u32 rtt_us)
 		    ca->search.search_drain_ackedseg %= SEARCH_DRAIN_ACKEDSEG_THRESH;
 		}	
 
-		new_cwnd = max(tcp_packets_in_flight(tp) + snd_cnt, ca->search.search_targeted_cwnd);
+		cwnd = tcp_snd_cwnd(tp);
+
+		new_cwnd = min(cwnd, max(tcp_packets_in_flight(tp) + snd_cnt,
+                             ca->search.search_targeted_cwnd));
+
+        new_cwnd = min(new_cwnd, tp->snd_cwnd_clamp);
 
 		tcp_snd_cwnd_set(tp, new_cwnd);   // like tcp_cwnd_reduction() in tcp_input.c
 
-		if (new_cwnd == ca->search.search_targeted_cwnd) {
+		if (new_cwnd <= ca->search.search_targeted_cwnd) {
 		    tp->snd_ssthresh = ca->search.search_targeted_cwnd;
 		    bictcp_search_reset(sk);
 
