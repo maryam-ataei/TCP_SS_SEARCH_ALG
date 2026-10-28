@@ -426,22 +426,19 @@ __bpf_kfunc static void cubictcp_cong_avoid(struct sock *sk, u32 ack, u32 acked)
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct bictcp *ca = inet_csk_ca(sk);
 
-	/*
-	 * A real Recovery/CWR ended while SEARCH was draining: Linux has set
-	 * cwnd = ssthresh, so slow start is over. Clear the drain state and
-	 * hand over to CUBIC. (Not called during Recovery/CWR; after an undo
-	 * cwnd < ssthresh again and the drain continues.)
-	 */
-	if (slow_start_mode == SS_SEARCH &&
-	    ca->search.search_cwnd_reduction_to_target &&
-	    !tcp_in_slow_start(tp))
-		bictcp_search_reset(sk);
+
+	if (slow_start_mode == SS_SEARCH) {
+		/* Slow start is over (cwnd >= ssthresh): reset any SEARCH state left */
+		if (!tcp_in_slow_start(tp) &&
+		    (ca->search.curr_idx >= 0 || ca->search.search_cwnd_reduction_to_target))
+			bictcp_search_reset(sk);
+
+		/* Draining: search_update() sets cwnd, so no slow-start growth here */
+		if (tcp_in_slow_start(tp) && ca->search.search_cwnd_reduction_to_target)
+			return;
+	}
 
 	if (!tcp_is_cwnd_limited(sk))
-		return;
-
-	// if SEARCH is in drain, set the cwnd based on drain rate
-	if (tcp_in_slow_start(tp) && ca->search.search_cwnd_reduction_to_target == 1)
 		return;
 
 	if (tcp_in_slow_start(tp)) {
@@ -914,8 +911,7 @@ static void search_update(struct sock *sk, u32 rtt_us)
 				norm_diff = diff * 100 / (s64)prev_sent_bytes;
 				/* Check the fixed SEARCH exit condition first. */
 				if (prev_sent_bytes >= curr_delv_bytes &&
-				    norm_diff >= search_thresh && 
-				    inet_csk(sk)->icsk_ca_state != TCP_CA_Recovery) {
+				    norm_diff >= search_thresh) {
 
 					app_limited_bin_count =
 						search_count_app_limited_bins(sk);
@@ -995,10 +991,8 @@ static void search_update(struct sock *sk, u32 rtt_us)
 	else {
 
 		/*
-		 * cwnd may have been reduced by Recovery while SEARCH Drain
-		 * was active. If cwnd is already at or below the SEARCH
-		 * target, there is nothing left for SEARCH to drain.
-		 *
+		 * If cwnd is already at or below the SEARCH target, there is
+		 * nothing left to drain: leave slow start at the target.
 		 */
 		if (tcp_snd_cwnd(tp) <= ca->search.search_targeted_cwnd) {
 
@@ -1067,8 +1061,9 @@ __bpf_kfunc static void cubictcp_acked(struct sock *sk, const struct ack_sample 
 	//////////////////////// SEARCH ////////////////////////
 	if (tcp_in_slow_start(tp)) {
 		if (slow_start_mode == SS_SEARCH) {
-			/* implement search algorithm */
-			search_update(sk, delay);
+			/* SEARCH runs only in Open/Disorder: not in CWR, Recovery or Loss */
+			if (inet_csk(sk)->icsk_ca_state <= TCP_CA_Disorder)
+				search_update(sk, delay);
 		} else if (slow_start_mode == SS_HYSTART && !ca->hystart.found)
 			hystart_update(sk, delay);
 	}
