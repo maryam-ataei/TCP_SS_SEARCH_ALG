@@ -824,23 +824,32 @@ static bool search_compute_target_cwnd(struct sock *sk)
 }
 
 /**
- * search_update - Update SEARCH bins and evaluate slow start exit conditions
+ * search_update - SEARCH per-ACK update: measure, decide, and drain
+ * @sk: the socket
+ * @rtt_us: RTT sample of this ACK, in microseconds
  *
- * This function handles the periodic updates of the SEARCH algorithm's bins,
- * which track delivered bytes over defined time intervals. It ensures that
- * bins are updated when their boundaries are reached and computes delivered
- * bytes for the current and previous windows. If the delivered bytes in the
- * current window are significantly less than in the previous window, it exits
- * the slow start phase based on the normalized difference in delivered bytes.
+ * Called from cubictcp_acked() only in slow start (cwnd < ssthresh) and only
+ * in the Open or Disorder state (not in CWR, Recovery or Loss).
  *
- * Key steps:
- * - Initialize bins if they are not yet set.
- * - Update bins when the current time exceeds the bin boundary.
- * - Check if there are enough bins to calculate previous window delivered bytes.
- * - Compute delivered bytes for current and previous windows, considering
- *   fractional adjustments for RTT overlaps.
- * - Evaluate exit condition using normalized difference in delivered bytes
- *   and invoke slow start exit if the condition is met.
+ * Measuring (not draining):
+ * - Keeps 10 time bins covering one window (3.5 x the first RTT by default)
+ *   with the running totals of bytes sent and bytes ACKed, plus a flag if any
+ *   ACK in the bin was app-limited.
+ * - When a bin ends, compares the bytes delivered in the last window with the
+ *   bytes sent in the window one RTT earlier:
+ *       norm = (sent - delivered) * 100 / sent
+ * - If norm >= search_thresh and too few bins were app-limited, computes the
+ *   target cwnd = 1.25 x the bytes delivered in the last RTT (BDP estimate;
+ *   if there is not enough history yet, keeps measuring). If both cwnd and
+ *   inflight are above the target, starts the drain; otherwise exits slow
+ *   start now with ssthresh = cwnd.
+ *
+ * Draining:
+ * - Lowers cwnd toward the target: cwnd = min(cwnd, max(inflight + 1 packet
+ *   per SEARCH_DRAIN_ACKEDSEG_THRESH delivered, target)). cwnd never grows.
+ * - When cwnd reaches the target, exits slow start with ssthresh = target.
+ *
+ * Every exit resets SEARCH, so the next slow start starts fresh.
  */
 static void search_update(struct sock *sk, u32 rtt_us)
 {
@@ -859,7 +868,8 @@ static void search_update(struct sock *sk, u32 rtt_us)
 	u32 new_cwnd = 0;
 	u32 app_limited_bin_count = 0;
 	int app_thresh = 0;
-	u32 curr_cwnd = 0;
+	u32 curr_cwnd = tcp_snd_cwnd(tp);
+	u32 inflight = tcp_packets_in_flight(tp);
 
 	if (unlikely(search_window_duration_factor <= 0)) {
 		bictcp_search_reset(sk);
@@ -935,8 +945,6 @@ static void search_update(struct sock *sk, u32 rtt_us)
 						 */
 						if (search_compute_target_cwnd(sk)) {
 
-							curr_cwnd = tcp_snd_cwnd(tp);
-							u32 inflight = tcp_packets_in_flight(tp);
 							u32 target_cwnd =
 								ca->search.search_targeted_cwnd;
 
@@ -989,8 +997,6 @@ static void search_update(struct sock *sk, u32 rtt_us)
 
 	/* SEARCH drain phase */
 	else {
-
-		curr_cwnd = tcp_snd_cwnd(tp);
 		/*
 		 * If cwnd is already at or below the SEARCH target, there is
 		 * nothing left to drain: leave slow start at the target.
@@ -1020,7 +1026,7 @@ static void search_update(struct sock *sk, u32 rtt_us)
 		}	
 
 
-		new_cwnd = min(curr_cwnd, max(tcp_packets_in_flight(tp) + snd_cnt,
+		new_cwnd = min(curr_cwnd, max(inflight + snd_cnt,
                              ca->search.search_targeted_cwnd));
 
         new_cwnd = min(new_cwnd, tp->snd_cwnd_clamp);
