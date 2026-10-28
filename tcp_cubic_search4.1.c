@@ -859,7 +859,7 @@ static void search_update(struct sock *sk, u32 rtt_us)
 	u32 new_cwnd = 0;
 	u32 app_limited_bin_count = 0;
 	int app_thresh = 0;
-	u32 cwnd = 0;
+	u32 curr_cwnd = 0;
 
 	if (unlikely(search_window_duration_factor <= 0)) {
 		bictcp_search_reset(sk);
@@ -935,7 +935,7 @@ static void search_update(struct sock *sk, u32 rtt_us)
 						 */
 						if (search_compute_target_cwnd(sk)) {
 
-							u32 current_cwnd = tcp_snd_cwnd(tp);
+							curr_cwnd = tcp_snd_cwnd(tp);
 							u32 inflight = tcp_packets_in_flight(tp);
 							u32 target_cwnd =
 								ca->search.search_targeted_cwnd;
@@ -943,11 +943,11 @@ static void search_update(struct sock *sk, u32 rtt_us)
 							/*
 							 * Enter Drain only when:
 							 *
-							 *   target_cwnd < current_cwnd
+							 *   target_cwnd < curr_cwnd
 							 *   AND
 							 *   inflight > target_cwnd
 							 *
-							 * target_cwnd may be >= current_cwnd when the capacity estimate
+							 * target_cwnd may be >= curr_cwnd when the capacity estimate
 							 * from the previous RTT is already at or above the current cwnd,
 							 * for example because cwnd changed during Recovery.
 							 *
@@ -959,12 +959,12 @@ static void search_update(struct sock *sk, u32 rtt_us)
 							 * that needs to be drained. Skip Drain and exit slow start at the
 							 * current cwnd.
 							 */
-							if (target_cwnd >= current_cwnd || inflight <= target_cwnd) {
+							if (target_cwnd >= curr_cwnd || inflight <= target_cwnd) {
 
 								/*
 								 * Exit slow start at the current cwnd.
 								 */
-								tp->snd_ssthresh = current_cwnd;
+								tp->snd_ssthresh = curr_cwnd;
 
 								bictcp_search_reset(sk);
 
@@ -990,11 +990,12 @@ static void search_update(struct sock *sk, u32 rtt_us)
 	/* SEARCH drain phase */
 	else {
 
+		curr_cwnd = tcp_snd_cwnd(tp);
 		/*
 		 * If cwnd is already at or below the SEARCH target, there is
 		 * nothing left to drain: leave slow start at the target.
 		 */
-		if (tcp_snd_cwnd(tp) <= ca->search.search_targeted_cwnd) {
+		if (curr_cwnd <= ca->search.search_targeted_cwnd) {
 
 			tp->snd_ssthresh = ca->search.search_targeted_cwnd;
 
@@ -1018,9 +1019,8 @@ static void search_update(struct sock *sk, u32 rtt_us)
 		    ca->search.search_drain_ackedseg %= SEARCH_DRAIN_ACKEDSEG_THRESH;
 		}	
 
-		cwnd = tcp_snd_cwnd(tp);
 
-		new_cwnd = min(cwnd, max(tcp_packets_in_flight(tp) + snd_cnt,
+		new_cwnd = min(curr_cwnd, max(tcp_packets_in_flight(tp) + snd_cnt,
                              ca->search.search_targeted_cwnd));
 
         new_cwnd = min(new_cwnd, tp->snd_cwnd_clamp);
